@@ -8,6 +8,8 @@ final class FocusSupportApp: NSObject, NSApplicationDelegate {
     private var menuFocusItem: NSMenuItem!
     private var timer: Timer?
     private let notificationsEnabled: Bool
+    private var notificationStartHour: Int = 9
+    private var notificationEndHour: Int = 20
 
     private var checkinCount = 0
     private var focusedCount = 0
@@ -68,6 +70,7 @@ final class FocusSupportApp: NSObject, NSApplicationDelegate {
         statusItem.menu = menu
 
         loadImageSettings()
+        loadNotificationTimeSettings()
         scheduleNextCheckin()
     }
 
@@ -153,6 +156,16 @@ final class FocusSupportApp: NSObject, NSApplicationDelegate {
                 },
                 removeImageAt: { [weak self] index in
                     self?.removeImage(at: index)
+                },
+                getNotificationHours: { [weak self] in
+                    guard let self else { return (9, 20) }
+                    return (self.notificationStartHour, self.notificationEndHour)
+                },
+                setNotificationHours: { [weak self] startHour, endHour in
+                    self?.notificationStartHour = startHour
+                    self?.notificationEndHour = endHour
+                    self?.saveNotificationTimeSettings()
+                    self?.scheduleNextCheckin()
                 }
             )
         }
@@ -170,12 +183,7 @@ final class FocusSupportApp: NSObject, NSApplicationDelegate {
 
     private func scheduleNextCheckin() {
         let now = Date()
-        var target = randomTimeInHour(from: now)
-        if target <= now {
-            if let nextHour = Calendar.current.date(byAdding: .hour, value: 1, to: now) {
-                target = randomTimeInHour(from: nextHour)
-            }
-        }
+        let target = nextAllowedCheckinTime(from: now)
 
         let waitSeconds = max(1, target.timeIntervalSince(now))
         timer?.invalidate()
@@ -195,6 +203,35 @@ final class FocusSupportApp: NSObject, NSApplicationDelegate {
         components.minute = Int.random(in: 0...59)
         components.second = Int.random(in: 0...59)
         return Calendar.current.date(from: components) ?? date
+    }
+
+    private func nextAllowedCheckinTime(from now: Date) -> Date {
+        let calendar = Calendar.current
+        guard let startOfHour = calendar.dateInterval(of: .hour, for: now)?.start else {
+            return now.addingTimeInterval(60)
+        }
+
+        for offset in 0...48 {
+            guard let hourDate = calendar.date(byAdding: .hour, value: offset, to: startOfHour) else { continue }
+            let hour = calendar.component(.hour, from: hourDate)
+            guard isHourAllowed(hour) else { continue }
+            let target = randomTimeInHour(from: hourDate)
+            if target > now {
+                return target
+            }
+        }
+
+        return now.addingTimeInterval(3600)
+    }
+
+    private func isHourAllowed(_ hour: Int) -> Bool {
+        if notificationStartHour == notificationEndHour {
+            return true
+        }
+        if notificationStartHour < notificationEndHour {
+            return hour >= notificationStartHour && hour < notificationEndHour
+        }
+        return hour >= notificationStartHour || hour < notificationEndHour
     }
 
     private func sendNotification() {
@@ -334,9 +371,23 @@ final class FocusSupportApp: NSObject, NSApplicationDelegate {
         imageFiles = defaults.stringArray(forKey: "imageFiles") ?? []
     }
 
+    private func loadNotificationTimeSettings() {
+        let defaults = UserDefaults.standard
+        let start = defaults.integer(forKey: "notificationStartHour")
+        let end = defaults.integer(forKey: "notificationEndHour")
+        notificationStartHour = start == 0 && defaults.object(forKey: "notificationStartHour") == nil ? 9 : start
+        notificationEndHour = end == 0 && defaults.object(forKey: "notificationEndHour") == nil ? 20 : end
+    }
+
     private func saveImageSettings() {
         let defaults = UserDefaults.standard
         defaults.set(imageFiles, forKey: "imageFiles")
+    }
+
+    private func saveNotificationTimeSettings() {
+        let defaults = UserDefaults.standard
+        defaults.set(notificationStartHour, forKey: "notificationStartHour")
+        defaults.set(notificationEndHour, forKey: "notificationEndHour")
     }
 
     private func imagesDirectory() -> URL {
@@ -397,6 +448,8 @@ final class SettingsWindowController: NSWindowController, NSTableViewDataSource,
     private let getImages: () -> [String]
     private let addImage: (URL) -> Void
     private let removeImageAt: (Int) -> Void
+    private let getNotificationHours: () -> (Int, Int)
+    private let setNotificationHours: (Int, Int) -> Void
 
     private var questions: [String] = []
     private var images: [String] = []
@@ -405,19 +458,25 @@ final class SettingsWindowController: NSWindowController, NSTableViewDataSource,
     private let inputField = NSTextField(string: "")
     private let cellVerticalPadding: CGFloat = 4
     private let rowHeight: CGFloat = 26
+    private let startHourPopup = NSPopUpButton()
+    private let endHourPopup = NSPopUpButton()
 
     init(getStats: @escaping () -> (String, String, String),
          getQuestions: @escaping () -> [String],
          setQuestions: @escaping ([String]) -> Void,
          getImages: @escaping () -> [String],
          addImage: @escaping (URL) -> Void,
-         removeImageAt: @escaping (Int) -> Void) {
+         removeImageAt: @escaping (Int) -> Void,
+         getNotificationHours: @escaping () -> (Int, Int),
+         setNotificationHours: @escaping (Int, Int) -> Void) {
         self.getStats = getStats
         self.getQuestions = getQuestions
         self.setQuestions = setQuestions
         self.getImages = getImages
         self.addImage = addImage
         self.removeImageAt = removeImageAt
+        self.getNotificationHours = getNotificationHours
+        self.setNotificationHours = setNotificationHours
 
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 640, height: 520),
@@ -469,6 +528,7 @@ final class SettingsWindowController: NSWindowController, NSTableViewDataSource,
         images = getImages()
         questionsTableView.reloadData()
         imagesTableView.reloadData()
+        refreshNotificationHours()
     }
 
     private func buildStatsView() -> NSView {
@@ -601,7 +661,10 @@ final class SettingsWindowController: NSWindowController, NSTableViewDataSource,
         imageDescriptionRow.distribution = .fill
         imageDescriptionRow.translatesAutoresizingMaskIntoConstraints = false
 
+        let notificationRow = buildNotificationTimeRow()
+
         let contentStack = NSStackView(views: [
+            notificationRow,
             descriptionRow,
             questionsScroll,
             inputRow,
@@ -653,6 +716,70 @@ final class SettingsWindowController: NSWindowController, NSTableViewDataSource,
         ])
 
         return view
+    }
+
+    private func buildNotificationTimeRow() -> NSView {
+        let title = NSTextField(labelWithString: "通知時間帯")
+        title.translatesAutoresizingMaskIntoConstraints = false
+
+        let startLabel = NSTextField(labelWithString: "開始")
+        startLabel.translatesAutoresizingMaskIntoConstraints = false
+        let endLabel = NSTextField(labelWithString: "終了")
+        endLabel.translatesAutoresizingMaskIntoConstraints = false
+
+        configureHourPopup(startHourPopup)
+        configureHourPopup(endHourPopup)
+
+        startHourPopup.target = self
+        startHourPopup.action = #selector(updateNotificationHours)
+        endHourPopup.target = self
+        endHourPopup.action = #selector(updateNotificationHours)
+
+        let spacer = NSView()
+        spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
+
+        let row = NSStackView(views: [title, spacer, startLabel, startHourPopup, endLabel, endHourPopup])
+        row.orientation = .horizontal
+        row.alignment = .centerY
+        row.distribution = .fill
+        row.spacing = 8
+        row.translatesAutoresizingMaskIntoConstraints = false
+
+        NSLayoutConstraint.activate([
+            startHourPopup.widthAnchor.constraint(equalToConstant: 70),
+            endHourPopup.widthAnchor.constraint(equalToConstant: 70)
+        ])
+
+        refreshNotificationHours()
+        return row
+    }
+
+    private func configureHourPopup(_ popup: NSPopUpButton) {
+        popup.removeAllItems()
+        for hour in 0...23 {
+            popup.addItem(withTitle: String(format: "%02d:00", hour))
+            popup.item(at: hour)?.tag = hour
+        }
+    }
+
+    private func refreshNotificationHours() {
+        let (start, end) = getNotificationHours()
+        selectHour(start, in: startHourPopup)
+        selectHour(end, in: endHourPopup)
+    }
+
+    private func selectHour(_ hour: Int, in popup: NSPopUpButton) {
+        if let item = popup.item(at: hour) {
+            popup.select(item)
+        } else {
+            popup.selectItem(at: 0)
+        }
+    }
+
+    @objc private func updateNotificationHours() {
+        let start = max(0, startHourPopup.selectedTag())
+        let end = max(0, endHourPopup.selectedTag())
+        setNotificationHours(start, end)
     }
 
     @objc private func addQuestion() {
