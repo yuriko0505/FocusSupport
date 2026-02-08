@@ -27,6 +27,7 @@ final class FocusSupportApp: NSObject, NSApplicationDelegate {
     private var currentImageIndex: Int?
 
     private var settingsWindowController: SettingsWindowController?
+    private var logWindowController: LogWindowController?
 
     private struct LogEntry {
         let time: String
@@ -101,6 +102,7 @@ final class FocusSupportApp: NSObject, NSApplicationDelegate {
         let timeText = timeFormatter.string(from: Date())
         let entry = LogEntry(time: timeText, question: question, response: userInput, type: isWandering ? "wandering" : "focused")
         todayLogs.append(entry)
+        appendLogEntry(entry)
 
         let feedback: String
         if isWandering {
@@ -113,26 +115,21 @@ final class FocusSupportApp: NSObject, NSApplicationDelegate {
     }
 
     @objc private func showLogs() {
-        guard !todayLogs.isEmpty else {
+        let logURL = logFileURL(for: Date())
+        guard let logText = readLogText(from: logURL) else {
             showAlert(title: "まだログがありません", message: "チェックインをしてみましょう！")
             return
         }
 
-        var logText = "【今日の思考ログ】\n\n"
-        for entry in todayLogs {
-            let emoji = entry.type == "wandering" ? "😴" : "✨"
-            logText += "\(emoji) \(entry.time) - \(entry.question)\n"
-            logText += "   → \(entry.response)\n\n"
+        let decoratedText = "【今日の思考ログ】\n\n" + logText
+        if logWindowController == nil {
+            logWindowController = LogWindowController()
         }
-
-        let logURL = logFileURL()
-        do {
-            try FileManager.default.createDirectory(at: logURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try logText.write(to: logURL, atomically: true, encoding: .utf8)
-            NSWorkspace.shared.open(logURL)
-        } catch {
-            showAlert(title: "保存に失敗", message: "ログの保存に失敗しました。")
-        }
+        logWindowController?.setLogText(decoratedText)
+        logWindowController?.showWindow(nil)
+        logWindowController?.window?.center()
+        logWindowController?.window?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
     }
 
     @objc private func showSettings() {
@@ -428,17 +425,56 @@ final class FocusSupportApp: NSObject, NSApplicationDelegate {
         currentImageIndex = Int.random(in: 0..<imageFiles.count)
     }
 
+    private lazy var dateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter
+    }()
+
     private lazy var timeFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateFormat = "HH:mm"
         return formatter
     }()
 
-    private func logFileURL() -> URL {
+    private func logsDirectory() -> URL {
         let baseDir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-        let dir = baseDir?.appendingPathComponent("FocusSupport", isDirectory: true)
-        return dir!.appendingPathComponent("focus_support_log.txt")
+        let dir = baseDir?.appendingPathComponent("FocusSupport/Logs", isDirectory: true)
+        return dir!
     }
+
+    private func logFileURL(for date: Date) -> URL {
+        let dateText = dateFormatter.string(from: date)
+        return logsDirectory().appendingPathComponent("log_\(dateText).log")
+    }
+
+    private func appendLogEntry(_ entry: LogEntry) {
+        let emoji = entry.type == "wandering" ? "😴" : "✨"
+        let line = "\(emoji) \(entry.time) - \(entry.question)\n   → \(entry.response)\n\n"
+        let data = Data(line.utf8)
+        let url = logFileURL(for: Date())
+        do {
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            if FileManager.default.fileExists(atPath: url.path) {
+                let handle = try FileHandle(forWritingTo: url)
+                try handle.seekToEnd()
+                try handle.write(contentsOf: data)
+                try handle.close()
+            } else {
+                try data.write(to: url, options: .atomic)
+            }
+        } catch {
+            showAlert(title: "保存に失敗", message: "ログの保存に失敗しました。")
+        }
+    }
+
+    private func readLogText(from url: URL) -> String? {
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            return nil
+        }
+        return try? String(contentsOf: url, encoding: .utf8)
+    }
+
 }
 
 final class SettingsWindowController: NSWindowController, NSTableViewDataSource, NSTableViewDelegate, NSTextFieldDelegate {
@@ -892,6 +928,62 @@ final class SettingsWindowController: NSWindowController, NSTableViewDataSource,
         cell.textField?.isEditable = isEditable
         cell.textField?.stringValue = text
         return cell
+    }
+}
+
+final class LogWindowController: NSWindowController {
+    private let textView = NSTextView()
+
+    init() {
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 560, height: 520),
+            styleMask: [.titled, .closable, .resizable, .miniaturizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = "今日のログ"
+        window.isReleasedWhenClosed = false
+        super.init(window: window)
+        buildUI()
+    }
+
+    required init?(coder: NSCoder) {
+        return nil
+    }
+
+    private func buildUI() {
+        guard let contentView = window?.contentView else { return }
+
+        let scrollView = NSScrollView()
+        scrollView.translatesAutoresizingMaskIntoConstraints = false
+        scrollView.hasVerticalScroller = true
+        scrollView.drawsBackground = true
+        scrollView.backgroundColor = NSColor.textBackgroundColor
+        contentView.addSubview(scrollView)
+
+        textView.frame = contentView.bounds
+        textView.isEditable = false
+        textView.isSelectable = true
+        textView.font = NSFont.monospacedSystemFont(ofSize: 13, weight: .regular)
+        textView.textContainerInset = NSSize(width: 12, height: 12)
+        textView.autoresizingMask = [.width]
+        textView.isVerticallyResizable = true
+        textView.isHorizontallyResizable = false
+        textView.textContainer?.widthTracksTextView = true
+        textView.textContainer?.heightTracksTextView = false
+        scrollView.documentView = textView
+
+        NSLayoutConstraint.activate([
+            scrollView.topAnchor.constraint(equalTo: contentView.topAnchor),
+            scrollView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
+            scrollView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
+            scrollView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor)
+        ])
+    }
+
+    func setLogText(_ text: String) {
+        textView.string = text
+        textView.scrollToBeginningOfDocument(nil)
     }
 }
 
