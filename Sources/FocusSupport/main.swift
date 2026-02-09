@@ -2,7 +2,7 @@ import AppKit
 import UserNotifications
 import UniformTypeIdentifiers
 
-final class FocusSupportApp: NSObject, NSApplicationDelegate {
+final class FocusSupportApp: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
     private var statusItem: NSStatusItem!
     private var menuCheckinItem: NSMenuItem!
     private var menuFocusItem: NSMenuItem!
@@ -46,7 +46,9 @@ final class FocusSupportApp: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         if notificationsEnabled {
-            UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
+            let center = UNUserNotificationCenter.current()
+            center.delegate = self
+            ensureNotificationAuthorization()
         }
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -191,7 +193,6 @@ final class FocusSupportApp: NSObject, NSApplicationDelegate {
 
     private func triggerCheckin() {
         sendNotification()
-        manualCheckin()
         scheduleNextCheckin()
     }
 
@@ -246,6 +247,57 @@ final class FocusSupportApp: NSObject, NSApplicationDelegate {
 
         let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
         UNUserNotificationCenter.current().add(request, withCompletionHandler: nil)
+    }
+
+    private func ensureNotificationAuthorization() {
+        let center = UNUserNotificationCenter.current()
+        center.getNotificationSettings { [weak self] settings in
+            guard let self else { return }
+            switch settings.authorizationStatus {
+            case .notDetermined:
+                center.requestAuthorization(options: [.alert, .sound]) { granted, _ in
+                    if granted {
+                        DispatchQueue.main.async {
+                            // 許可直後に一度通知を出す
+                            self.sendNotification()
+                        }
+                    } else {
+                        DispatchQueue.main.async {
+                            self.showAlert(title: "通知が許可されていません",
+                                           message: "システム設定の通知からFocusSupportを許可してください。")
+                        }
+                    }
+                }
+            case .denied:
+                DispatchQueue.main.async {
+                    self.showAlert(title: "通知が許可されていません",
+                                   message: "システム設定の通知からFocusSupportを許可してください。")
+                }
+            case .authorized, .provisional, .ephemeral:
+                break
+            @unknown default:
+                break
+            }
+        }
+    }
+
+    // バナー表示中にアプリが前面でも通知を表示させる
+    func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                willPresent notification: UNNotification,
+                                withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        completionHandler([.banner, .sound])
+    }
+
+    // バナークリックでチェックイン画面を表示
+    func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                didReceive response: UNNotificationResponse,
+                                withCompletionHandler completionHandler: @escaping () -> Void) {
+        if response.actionIdentifier == UNNotificationDefaultActionIdentifier {
+            DispatchQueue.main.async { [weak self] in
+                self?.manualCheckin()
+            }
+        }
+        completionHandler()
     }
 
     private func promptForResponse(question: String) -> String? {
