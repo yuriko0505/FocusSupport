@@ -1,6 +1,5 @@
-# FocusSupport (Swift)
+# FocusSupport
 
-macOSメニューバー常駐の FocusSupport を Swift で実装した版です。
 「今何考えてる？」と不定期に話しかけ、思考を促します。
 
 ## 特徴
@@ -14,33 +13,41 @@ macOSメニューバー常駐の FocusSupport を Swift で実装した版です
 - macOS 12 以上
 - Xcode 14+（または Swift 5.9+）
 
-## 実行方法（ビルドスクリプト）
-
-KeystrokeCounterと同じ方式で `.app` を生成します。
-
+## ビルド方法
 ```bash
-cd /Users/yurikoyamauchi/myapp/FocusSupportSwift
 ./build.sh
-open .build/FocusSupport.app
 ```
+
+## 実行方法
+### デバッグ実行
+```bash
+./.build/FocusSupport
+```
+### アプリとして実行
+1. コード署名権限のある証明書を用意
+2. アプリにコード署名
+    ```bash
+    codesign --force --deep --sign "<cert name>" /path/to/FocusSupport.app
+    ```
+3. アプリを開く
+4. 通知を許可する
 
 ## 使い方
 
+アプリを起動するだけで動作します。
+
+### 壁打ちを手動で行う
 - メニューバーの🧠アイコンをクリック
 - 「今すぐ壁打ち」で入力
+
+### ログを見る
 - 「今日のログを見る」で保存ログを開く
-- 「設定」→「各種設定」で壁打ちウィンドウ/通知の画像を追加・変更（チェックインごとにランダム表示）
+- `~/Library/Application Support/FocusSupport/Logs` フォルダに日別ログが保存されます
 
-## ログ保存場所
+### 設定を変更する
+- 「設定」→「各種設定」で通知時間帯/通知のコメント・画像を追加・変更（チェックインごとにランダム表示）
 
-`~/Library/Application Support/FocusSupport/focus_support_log.txt`
-
-## 仕様
-
-- **不定期通知**は「各時間帯に1回」で、時刻はランダムです。
-- 通知と同時に入力ダイアログが開きます。
-
-## 今後の拡張（例）
+## 今後の拡張案
 
 - Claude / OpenAI API連携
 - 起動時自動開始（Login Items）
