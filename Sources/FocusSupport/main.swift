@@ -7,6 +7,7 @@ final class FocusSupportApp: NSObject, NSApplicationDelegate, UNUserNotification
     private var menuCheckinItem: NSMenuItem!
     private var menuFocusItem: NSMenuItem!
     private var timer: Timer?
+    private var schedulingObserversRegistered = false
     private let notificationsEnabled: Bool
     private var notificationStartHour: Int = 9
     private var notificationEndHour: Int = 20
@@ -74,7 +75,13 @@ final class FocusSupportApp: NSObject, NSApplicationDelegate, UNUserNotification
 
         loadImageSettings()
         loadNotificationTimeSettings()
+        registerSchedulingObserversIfNeeded()
         scheduleNextCheckin()
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        timer?.invalidate()
+        unregisterSchedulingObservers()
     }
 
     @objc private func manualCheckin() {
@@ -189,6 +196,43 @@ final class FocusSupportApp: NSObject, NSApplicationDelegate, UNUserNotification
         timer = Timer.scheduledTimer(withTimeInterval: waitSeconds, repeats: false) { [weak self] _ in
             self?.triggerCheckin()
         }
+    }
+
+    private func registerSchedulingObserversIfNeeded() {
+        guard schedulingObserversRegistered == false else { return }
+        schedulingObserversRegistered = true
+
+        let center = NotificationCenter.default
+        center.addObserver(self,
+                           selector: #selector(handleSchedulingContextChanged(_:)),
+                           name: .NSCalendarDayChanged,
+                           object: nil)
+        center.addObserver(self,
+                           selector: #selector(handleSchedulingContextChanged(_:)),
+                           name: .NSSystemClockDidChange,
+                           object: nil)
+        center.addObserver(self,
+                           selector: #selector(handleSchedulingContextChanged(_:)),
+                           name: .NSSystemTimeZoneDidChange,
+                           object: nil)
+
+        NSWorkspace.shared.notificationCenter.addObserver(self,
+                                                          selector: #selector(handleSchedulingContextChanged(_:)),
+                                                          name: NSWorkspace.didWakeNotification,
+                                                          object: nil)
+    }
+
+    private func unregisterSchedulingObservers() {
+        guard schedulingObserversRegistered else { return }
+        schedulingObserversRegistered = false
+        NotificationCenter.default.removeObserver(self, name: .NSCalendarDayChanged, object: nil)
+        NotificationCenter.default.removeObserver(self, name: .NSSystemClockDidChange, object: nil)
+        NotificationCenter.default.removeObserver(self, name: .NSSystemTimeZoneDidChange, object: nil)
+        NSWorkspace.shared.notificationCenter.removeObserver(self, name: NSWorkspace.didWakeNotification, object: nil)
+    }
+
+    @objc private func handleSchedulingContextChanged(_ notification: Notification) {
+        scheduleNextCheckin()
     }
 
     private func triggerCheckin() {
@@ -335,21 +379,6 @@ final class FocusSupportApp: NSObject, NSApplicationDelegate, UNUserNotification
         alert.addButton(withTitle: "送信")
         alert.addButton(withTitle: "スキップ")
         
-        // レイアウトを強制的に実行
-        alert.layout()
-        
-        // アイコンビューを見つけて非表示にする
-        if let window = alert.window as NSWindow? {
-            for subview in window.contentView?.subviews ?? [] {
-                if subview is NSImageView && subview.frame.width < 100 {
-                    subview.isHidden = true
-                    subview.frame = .zero
-                    subview.setFrameSize(.zero)
-                    subview.removeFromSuperview()
-                }
-            }
-        }
-
         let response = alert.runModal()
         if response == .alertFirstButtonReturn {
             return inputField.stringValue
