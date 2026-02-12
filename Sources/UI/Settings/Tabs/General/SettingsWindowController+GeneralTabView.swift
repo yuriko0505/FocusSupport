@@ -102,6 +102,31 @@ extension SettingsWindowController {
         imageButtons.distribution = .fill
         imageButtons.translatesAutoresizingMaskIntoConstraints = false
 
+        let appIconDescription = NSTextField(labelWithString: "アプリアイコン")
+        appIconDescription.translatesAutoresizingMaskIntoConstraints = false
+
+        appIconNameLabel.translatesAutoresizingMaskIntoConstraints = false
+        appIconNameLabel.lineBreakMode = .byTruncatingMiddle
+        refreshAppIconName()
+
+        let addAppIconButton = NSButton(title: "画像を選択", target: self, action: #selector(addAppIconFromPicker))
+        addAppIconButton.setButtonType(.momentaryPushIn)
+        addAppIconButton.translatesAutoresizingMaskIntoConstraints = false
+
+        let resetAppIconButton = NSButton(title: "デフォルトに戻す", target: self, action: #selector(resetAppIconToDefault))
+        resetAppIconButton.setButtonType(.momentaryPushIn)
+        resetAppIconButton.translatesAutoresizingMaskIntoConstraints = false
+
+        let appIconSpacer = NSView()
+        appIconSpacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
+
+        let appIconRow = NSStackView(views: [appIconDescription, appIconNameLabel, appIconSpacer, addAppIconButton, resetAppIconButton])
+        appIconRow.orientation = .horizontal
+        appIconRow.alignment = .centerY
+        appIconRow.distribution = .fill
+        appIconRow.spacing = 8
+        appIconRow.translatesAutoresizingMaskIntoConstraints = false
+
         let imageDescriptionSpacer = NSView()
         imageDescriptionSpacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
         let imageDescriptionRow = NSStackView(views: [imageDescription, imageDescriptionSpacer])
@@ -119,7 +144,8 @@ extension SettingsWindowController {
             inputRow,
             imageDescriptionRow,
             imagesScroll,
-            imageButtons
+            imageButtons,
+            appIconRow
         ])
         contentStack.orientation = .vertical
         contentStack.spacing = 10
@@ -158,6 +184,9 @@ extension SettingsWindowController {
             removeButton.widthAnchor.constraint(equalToConstant: 60),
             addImageButton.widthAnchor.constraint(equalToConstant: 80),
             removeImageButton.widthAnchor.constraint(equalToConstant: 60),
+            addAppIconButton.widthAnchor.constraint(equalToConstant: 100),
+            resetAppIconButton.widthAnchor.constraint(equalToConstant: 130),
+            appIconNameLabel.widthAnchor.constraint(greaterThanOrEqualToConstant: 140),
 
             questionsScroll.heightAnchor.constraint(greaterThanOrEqualToConstant: 100),
             imagesScroll.heightAnchor.constraint(greaterThanOrEqualToConstant: 100),

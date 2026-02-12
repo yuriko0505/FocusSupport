@@ -7,14 +7,19 @@ final class SettingsWindowController: NSWindowController, NSTableViewDataSource,
     let getImages: () -> [String]
     let addImage: (URL) -> Void
     let removeImageAt: (Int) -> Void
+    let getAppIconFileName: () -> String?
+    let setAppIcon: (URL) -> Void
+    let resetAppIcon: () -> Void
     let getNotificationHours: () -> (Int, Int)
     let setNotificationHours: (Int, Int) -> Void
 
     var questions: [String] = []
     var images: [String] = []
+    var appIconFileName: String?
     let questionsTableView = NSTableView()
     let imagesTableView = NSTableView()
     let inputField = NSTextField(string: "")
+    let appIconNameLabel = NSTextField(labelWithString: "未設定")
     let cellVerticalPadding: CGFloat = 4
     let rowHeight: CGFloat = 26
     let startHourPopup = NSPopUpButton()
@@ -26,6 +31,9 @@ final class SettingsWindowController: NSWindowController, NSTableViewDataSource,
          getImages: @escaping () -> [String],
          addImage: @escaping (URL) -> Void,
          removeImageAt: @escaping (Int) -> Void,
+         getAppIconFileName: @escaping () -> String?,
+         setAppIcon: @escaping (URL) -> Void,
+         resetAppIcon: @escaping () -> Void,
          getNotificationHours: @escaping () -> (Int, Int),
          setNotificationHours: @escaping (Int, Int) -> Void) {
         self.getStats = getStats
@@ -34,6 +42,9 @@ final class SettingsWindowController: NSWindowController, NSTableViewDataSource,
         self.getImages = getImages
         self.addImage = addImage
         self.removeImageAt = removeImageAt
+        self.getAppIconFileName = getAppIconFileName
+        self.setAppIcon = setAppIcon
+        self.resetAppIcon = resetAppIcon
         self.getNotificationHours = getNotificationHours
         self.setNotificationHours = setNotificationHours
 
@@ -50,6 +61,7 @@ final class SettingsWindowController: NSWindowController, NSTableViewDataSource,
 
         self.questions = getQuestions()
         self.images = getImages()
+        self.appIconFileName = getAppIconFileName()
         buildUI()
     }
 
@@ -85,8 +97,10 @@ final class SettingsWindowController: NSWindowController, NSTableViewDataSource,
     func refreshData() {
         questions = getQuestions()
         images = getImages()
+        appIconFileName = getAppIconFileName()
         questionsTableView.reloadData()
         imagesTableView.reloadData()
+        refreshAppIconName()
         refreshNotificationHours()
     }
 }

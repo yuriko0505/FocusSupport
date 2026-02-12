@@ -24,6 +24,7 @@ final class FocusSupportApp: NSObject, NSApplicationDelegate, UNUserNotification
         "今の作業、本当に優先度高い？"
     ]
     var imageFiles: [String] = []
+    var appIconFileName: String?
     var currentImageIndex: Int?
 
     var settingsWindowController: SettingsWindowController?
@@ -62,9 +63,7 @@ final class FocusSupportApp: NSObject, NSApplicationDelegate, UNUserNotification
         }
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        if let button = statusItem.button {
-            button.title = "🧠"
-        }
+        applyStatusItemIcon()
 
         let menu = NSMenu()
         menuCheckinItem = NSMenuItem(title: "今日のチェックイン: 0回", action: nil, keyEquivalent: "")
@@ -83,6 +82,8 @@ final class FocusSupportApp: NSObject, NSApplicationDelegate, UNUserNotification
         statusItem.menu = menu
 
         loadImageSettings()
+        loadAppIconSettings()
+        applyStatusItemIcon()
         loadNotificationTimeSettings()
         registerSchedulingObserversIfNeeded()
         scheduleNextCheckin()

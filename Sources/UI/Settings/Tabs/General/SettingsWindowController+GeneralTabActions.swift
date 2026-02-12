@@ -51,4 +51,28 @@ extension SettingsWindowController {
         images = getImages()
         imagesTableView.reloadData()
     }
+
+    func refreshAppIconName() {
+        appIconNameLabel.stringValue = appIconFileName ?? "未設定"
+    }
+
+    @objc func addAppIconFromPicker() {
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = [.png, .jpeg, .tiff]
+        panel.canChooseDirectories = false
+        panel.canChooseFiles = true
+        panel.beginSheetModal(for: window!) { [weak self] response in
+            guard response == .OK, let url = panel.url else { return }
+            self?.setAppIcon(url)
+            self?.appIconFileName = self?.getAppIconFileName()
+            self?.refreshAppIconName()
+        }
+    }
+
+    @objc func resetAppIconToDefault() {
+        resetAppIcon()
+        appIconFileName = getAppIconFileName()
+        refreshAppIconName()
+    }
 }

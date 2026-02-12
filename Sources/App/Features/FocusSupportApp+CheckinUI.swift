@@ -2,6 +2,20 @@ import AppKit
 import UserNotifications
 
 extension FocusSupportApp {
+    func alertIconImage() -> NSImage? {
+        guard let image = appIconImage() else { return nil }
+        let targetSize = NSSize(width: 64, height: 64)
+        let resized = NSImage(size: targetSize)
+        resized.lockFocus()
+        NSGraphicsContext.current?.imageInterpolation = .high
+        image.draw(in: NSRect(origin: .zero, size: targetSize),
+                   from: NSRect(origin: .zero, size: image.size),
+                   operation: .copy,
+                   fraction: 1.0)
+        resized.unlockFocus()
+        return resized
+    }
+
     @objc func manualCheckin() {
         randomizePromptImageIfNeeded()
         checkinCount += 1
@@ -81,6 +95,15 @@ extension FocusSupportApp {
                 removeImageAt: { [weak self] index in
                     self?.removeImage(at: index)
                 },
+                getAppIconFileName: { [weak self] in
+                    return self?.appIconFileName
+                },
+                setAppIcon: { [weak self] url in
+                    self?.importAppIcon(url: url)
+                },
+                resetAppIcon: { [weak self] in
+                    self?.removeAppIcon()
+                },
                 getNotificationHours: { [weak self] in
                     guard let self else { return (9, 20) }
                     return (self.notificationStartHour, self.notificationEndHour)
@@ -110,14 +133,17 @@ extension FocusSupportApp {
         let alert = NSAlert()
         alert.messageText = question
         alert.alertStyle = .informational
-
-        // 透明な画像を作成してアイコンを非表示にする
-        let transparentImage = NSImage(size: NSSize(width: 1, height: 1))
-        transparentImage.lockFocus()
-        NSColor.clear.set()
-        NSBezierPath.fill(NSRect(x: 0, y: 0, width: 1, height: 1))
-        transparentImage.unlockFocus()
-        alert.icon = transparentImage
+        if let icon = alertIconImage() {
+            alert.icon = icon
+        } else {
+            // Keep previous look when no custom icon is configured.
+            let transparentImage = NSImage(size: NSSize(width: 1, height: 1))
+            transparentImage.lockFocus()
+            NSColor.clear.set()
+            NSBezierPath.fill(NSRect(x: 0, y: 0, width: 1, height: 1))
+            transparentImage.unlockFocus()
+            alert.icon = transparentImage
+        }
 
         let containerView = NSView(frame: NSRect(x: 0, y: 0, width: 320, height: 240))
 
@@ -171,6 +197,9 @@ extension FocusSupportApp {
         let alert = NSAlert()
         alert.messageText = title
         alert.informativeText = message
+        if let icon = alertIconImage() {
+            alert.icon = icon
+        }
         alert.addButton(withTitle: "OK")
         alert.runModal()
     }

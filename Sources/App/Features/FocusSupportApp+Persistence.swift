@@ -31,6 +31,11 @@ extension FocusSupportApp {
         imageFiles = defaults.stringArray(forKey: "imageFiles") ?? []
     }
 
+    func loadAppIconSettings() {
+        let defaults = UserDefaults.standard
+        appIconFileName = defaults.string(forKey: "appIconFileName")
+    }
+
     func loadNotificationTimeSettings() {
         let defaults = UserDefaults.standard
         let start = defaults.integer(forKey: "notificationStartHour")
@@ -44,6 +49,11 @@ extension FocusSupportApp {
         defaults.set(imageFiles, forKey: "imageFiles")
     }
 
+    func saveAppIconSettings() {
+        let defaults = UserDefaults.standard
+        defaults.set(appIconFileName, forKey: "appIconFileName")
+    }
+
     func saveNotificationTimeSettings() {
         let defaults = UserDefaults.standard
         defaults.set(notificationStartHour, forKey: "notificationStartHour")
@@ -53,6 +63,12 @@ extension FocusSupportApp {
     func imagesDirectory() -> URL {
         let baseDir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
         let dir = baseDir?.appendingPathComponent("FocusSupport/Images", isDirectory: true)
+        return dir!
+    }
+
+    func appIconDirectory() -> URL {
+        let baseDir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+        let dir = baseDir?.appendingPathComponent("FocusSupport/AppIcon", isDirectory: true)
         return dir!
     }
 
@@ -81,6 +97,74 @@ extension FocusSupportApp {
         try? FileManager.default.removeItem(at: url)
         imageFiles.remove(at: index)
         saveImageSettings()
+    }
+
+    func appIconImage() -> NSImage? {
+        guard let fileName = appIconFileName else { return nil }
+        let url = appIconDirectory().appendingPathComponent(fileName)
+        return NSImage(contentsOf: url)
+    }
+
+    func resizedStatusIcon(from image: NSImage) -> NSImage {
+        // Menu bar icon should fit the status bar height with a small margin.
+        let iconSize = max(14, NSStatusBar.system.thickness - 6)
+        let targetSize = NSSize(width: iconSize, height: iconSize)
+
+        let resized = NSImage(size: targetSize)
+        resized.lockFocus()
+        NSGraphicsContext.current?.imageInterpolation = .high
+        image.draw(in: NSRect(origin: .zero, size: targetSize),
+                   from: NSRect(origin: .zero, size: image.size),
+                   operation: .copy,
+                   fraction: 1.0)
+        resized.unlockFocus()
+        resized.size = targetSize
+        return resized
+    }
+
+    func applyStatusItemIcon() {
+        guard let button = statusItem?.button else { return }
+        if let image = appIconImage() {
+            let icon = resizedStatusIcon(from: image)
+            button.image = icon
+            button.imageScaling = .scaleNone
+            button.title = ""
+        } else {
+            button.image = nil
+            button.title = "🧠"
+        }
+    }
+
+    func importAppIcon(url: URL) {
+        do {
+            let dir = appIconDirectory()
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+
+            let ext = url.pathExtension.isEmpty ? "png" : url.pathExtension.lowercased()
+            let fileName = "status_icon.\(ext)"
+            let target = dir.appendingPathComponent(fileName)
+
+            if FileManager.default.fileExists(atPath: target.path) {
+                try FileManager.default.removeItem(at: target)
+            }
+            try FileManager.default.copyItem(at: url, to: target)
+
+            appIconFileName = fileName
+            saveAppIconSettings()
+            applyStatusItemIcon()
+        } catch {
+            showAlert(title: "アイコン設定に失敗", message: "アプリアイコンの設定に失敗しました。別の画像で試してください。")
+        }
+    }
+
+    func removeAppIcon() {
+        if let fileName = appIconFileName {
+            let url = appIconDirectory().appendingPathComponent(fileName)
+            try? FileManager.default.removeItem(at: url)
+        }
+        appIconFileName = nil
+        saveAppIconSettings()
+        applyStatusItemIcon()
     }
 
     func logsDirectory() -> URL {
