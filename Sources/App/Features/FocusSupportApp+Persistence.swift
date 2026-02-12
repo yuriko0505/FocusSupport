@@ -66,6 +66,14 @@ extension FocusSupportApp {
         }
     }
 
+    func loadQuestionSettings() {
+        let defaults = UserDefaults.standard
+        guard let savedQuestions = defaults.stringArray(forKey: "questions") else {
+            return
+        }
+        questions = savedQuestions
+    }
+
     func loadAppIconSettings() {
         let defaults = UserDefaults.standard
         appIconFileName = defaults.string(forKey: "appIconFileName")
@@ -82,6 +90,11 @@ extension FocusSupportApp {
     func saveImageSettings() {
         let defaults = UserDefaults.standard
         defaults.set(imageFiles, forKey: "imageFiles")
+    }
+
+    func saveQuestionSettings() {
+        let defaults = UserDefaults.standard
+        defaults.set(questions, forKey: "questions")
     }
 
     func saveAppIconSettings() {

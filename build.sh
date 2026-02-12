@@ -3,7 +3,7 @@ set -euo pipefail
 
 APP_NAME="FocusSupport"
 APP_BUILD_VERSION="0"
-APP_SHORT_VERSION="0.4"
+APP_SHORT_VERSION="0.5"
 OUT_DIR=".build"
 APP_DIR="$OUT_DIR/$APP_NAME.app"
 BIN_PATH="$OUT_DIR/$APP_NAME"

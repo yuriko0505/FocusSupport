@@ -81,6 +81,7 @@ final class FocusSupportApp: NSObject, NSApplicationDelegate, UNUserNotification
         menu.items.forEach { $0.target = self }
         statusItem.menu = menu
 
+        loadQuestionSettings()
         loadImageSettings()
         loadAppIconSettings()
         applyStatusItemIcon()

@@ -85,6 +85,7 @@ extension FocusSupportApp {
                 },
                 setQuestions: { [weak self] newQuestions in
                     self?.questions = newQuestions
+                    self?.saveQuestionSettings()
                 },
                 getImages: { [weak self] in
                     return self?.imageFiles ?? []
