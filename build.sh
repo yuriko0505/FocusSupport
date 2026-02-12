@@ -2,6 +2,8 @@
 set -euo pipefail
 
 APP_NAME="FocusSupport"
+APP_BUILD_VERSION="0"
+APP_SHORT_VERSION="0.2"
 OUT_DIR=".build"
 APP_DIR="$OUT_DIR/$APP_NAME.app"
 BIN_PATH="$OUT_DIR/$APP_NAME"
@@ -42,7 +44,7 @@ mkdir -p "$APP_DIR/Contents/Resources"
 
 cp "$BIN_PATH" "$APP_DIR/Contents/MacOS/$APP_NAME"
 
-cat <<'PLIST' > "$APP_DIR/Contents/Info.plist"
+cat <<PLIST > "$APP_DIR/Contents/Info.plist"
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -54,9 +56,9 @@ cat <<'PLIST' > "$APP_DIR/Contents/Info.plist"
   <key>CFBundleIdentifier</key>
   <string>com.local.FocusSupport</string>
   <key>CFBundleVersion</key>
-  <string>1</string>
+  <string>${APP_BUILD_VERSION}</string>
   <key>CFBundleShortVersionString</key>
-  <string>1.0</string>
+  <string>${APP_SHORT_VERSION}</string>
   <key>CFBundleExecutable</key>
   <string>FocusSupport</string>
   <key>LSUIElement</key>
