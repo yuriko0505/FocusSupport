@@ -10,7 +10,7 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "FocusSupport",
-            path: "Sources/FocusSupport"
+            path: "Sources"
         )
     ]
 )
