@@ -1,6 +1,18 @@
 import AppKit
 
 extension FocusSupportApp {
+    func existingImageFileNames() -> [String] {
+        let dir = imagesDirectory()
+        let fileManager = FileManager.default
+        guard let items = try? fileManager.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil) else {
+            return []
+        }
+        return items
+            .filter { $0.hasDirectoryPath == false }
+            .map(\.lastPathComponent)
+            .sorted()
+    }
+
     func loadImage(named fileName: String) -> NSImage? {
         let url = imagesDirectory().appendingPathComponent(fileName)
         guard let originalImage = NSImage(contentsOf: url) else { return nil }
@@ -28,7 +40,30 @@ extension FocusSupportApp {
 
     func loadImageSettings() {
         let defaults = UserDefaults.standard
-        imageFiles = defaults.stringArray(forKey: "imageFiles") ?? []
+        let configuredFiles = defaults.stringArray(forKey: "imageFiles") ?? []
+        let existingFiles = existingImageFileNames()
+
+        if configuredFiles.isEmpty {
+            // Recover from missing UserDefaults by rebuilding the list from local files.
+            imageFiles = existingFiles
+            if existingFiles.isEmpty == false {
+                saveImageSettings()
+            }
+            return
+        }
+
+        let existingSet = Set(existingFiles)
+        var reconciled = configuredFiles.filter { existingSet.contains($0) }
+
+        // Include files that exist on disk but are not in defaults yet.
+        for fileName in existingFiles where reconciled.contains(fileName) == false {
+            reconciled.append(fileName)
+        }
+
+        imageFiles = reconciled
+        if imageFiles != configuredFiles {
+            saveImageSettings()
+        }
     }
 
     func loadAppIconSettings() {
