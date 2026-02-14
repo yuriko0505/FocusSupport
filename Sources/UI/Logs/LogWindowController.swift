@@ -1,19 +1,23 @@
 import AppKit
 
 final class LogWindowController: NSWindowController {
+    private struct TimelineStyle {
+        let accentColor: NSColor
+        let connectorColor: NSColor
+        let cardColor: NSColor
+        let cardBorderColor: NSColor
+    }
+
     struct LogItem {
         let time: String
         let response: String
+        let state: CheckinState
     }
 
     private let scrollView = NSScrollView()
     private let stackView = NSStackView()
     private let backgroundColor = NSColor(calibratedRed: 0.09, green: 0.1, blue: 0.12, alpha: 1.0)
     private let panelColor = NSColor(calibratedRed: 0.12, green: 0.14, blue: 0.17, alpha: 1.0)
-    private let cardColor = NSColor(calibratedRed: 0.15, green: 0.17, blue: 0.21, alpha: 1.0)
-    private let cardBorderColor = NSColor(calibratedRed: 0.23, green: 0.27, blue: 0.33, alpha: 1.0)
-    private let timelineColor = NSColor(calibratedRed: 0.38, green: 0.74, blue: 0.98, alpha: 1.0)
-    private let connectorColor = NSColor(calibratedRed: 0.24, green: 0.35, blue: 0.46, alpha: 1.0)
 
     init() {
         let window = NSWindow(
@@ -97,6 +101,8 @@ final class LogWindowController: NSWindowController {
     }
 
     private func timelineRow(for entry: LogItem, showsConnector: Bool) -> NSView {
+        let style = style(for: entry.state)
+
         let row = NSStackView()
         row.orientation = .horizontal
         row.spacing = 10
@@ -112,7 +118,7 @@ final class LogWindowController: NSWindowController {
 
         let timeLabel = NSTextField(labelWithString: entry.time)
         timeLabel.font = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .semibold)
-        timeLabel.textColor = timelineColor
+        timeLabel.textColor = style.accentColor
         timeLabel.alignment = .right
         timeLabel.translatesAutoresizingMaskIntoConstraints = false
         timeColumn.addSubview(timeLabel)
@@ -133,11 +139,11 @@ final class LogWindowController: NSWindowController {
         let dot = NSView()
         dot.translatesAutoresizingMaskIntoConstraints = false
         dot.wantsLayer = true
-        dot.layer?.backgroundColor = timelineColor.cgColor
+        dot.layer?.backgroundColor = style.accentColor.cgColor
         dot.layer?.cornerRadius = 7
         dot.layer?.borderWidth = 2
         dot.layer?.borderColor = NSColor(calibratedRed: 0.16, green: 0.2, blue: 0.26, alpha: 1.0).cgColor
-        dot.layer?.shadowColor = timelineColor.withAlphaComponent(0.4).cgColor
+        dot.layer?.shadowColor = style.accentColor.withAlphaComponent(0.45).cgColor
         dot.layer?.shadowRadius = 3
         dot.layer?.shadowOpacity = 1
         dot.layer?.shadowOffset = NSSize(width: 0, height: 1)
@@ -154,7 +160,7 @@ final class LogWindowController: NSWindowController {
             let line = NSView()
             line.translatesAutoresizingMaskIntoConstraints = false
             line.wantsLayer = true
-            line.layer?.backgroundColor = connectorColor.cgColor
+            line.layer?.backgroundColor = style.connectorColor.cgColor
             markerColumn.addSubview(line)
             NSLayoutConstraint.activate([
                 line.topAnchor.constraint(equalTo: dot.bottomAnchor, constant: 4),
@@ -171,9 +177,9 @@ final class LogWindowController: NSWindowController {
         let card = NSView()
         card.translatesAutoresizingMaskIntoConstraints = false
         card.wantsLayer = true
-        card.layer?.backgroundColor = cardColor.cgColor
+        card.layer?.backgroundColor = style.cardColor.cgColor
         card.layer?.cornerRadius = 14
-        card.layer?.borderColor = cardBorderColor.cgColor
+        card.layer?.borderColor = style.cardBorderColor.cgColor
         card.layer?.borderWidth = 1
         card.layer?.shadowColor = NSColor.black.withAlphaComponent(0.35).cgColor
         card.layer?.shadowRadius = 8
@@ -183,9 +189,20 @@ final class LogWindowController: NSWindowController {
 
         let cardStack = NSStackView()
         cardStack.orientation = .vertical
-        cardStack.spacing = 8
+        cardStack.spacing = 6
         cardStack.translatesAutoresizingMaskIntoConstraints = false
         card.addSubview(cardStack)
+
+        let stateLabel = NSTextField(labelWithString: entry.state.label)
+        stateLabel.font = NSFont.systemFont(ofSize: 11, weight: .bold)
+        stateLabel.textColor = style.accentColor
+        let stateSpacer = NSView()
+        stateSpacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        stateSpacer.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        let stateRow = NSStackView(views: [stateLabel, stateSpacer])
+        stateRow.orientation = .horizontal
+        stateRow.alignment = .firstBaseline
+        stateRow.spacing = 0
 
         let responseLabel = NSTextField(wrappingLabelWithString: entry.response)
         responseLabel.font = NSFont.systemFont(ofSize: 14, weight: .regular)
@@ -194,6 +211,7 @@ final class LogWindowController: NSWindowController {
         responseLabel.maximumNumberOfLines = 0
         responseLabel.setContentCompressionResistancePriority(.required, for: .vertical)
 
+        cardStack.addArrangedSubview(stateRow)
         cardStack.addArrangedSubview(responseLabel)
 
         NSLayoutConstraint.activate([
@@ -224,5 +242,31 @@ final class LogWindowController: NSWindowController {
         cardContainer.widthAnchor.constraint(equalTo: row.widthAnchor, constant: -104).isActive = true
 
         return row
+    }
+
+    private func style(for state: CheckinState) -> TimelineStyle {
+        switch state {
+        case .focused:
+            return TimelineStyle(
+                accentColor: NSColor(calibratedRed: 0.28, green: 0.81, blue: 0.95, alpha: 1.0),
+                connectorColor: NSColor(calibratedRed: 0.23, green: 0.47, blue: 0.58, alpha: 1.0),
+                cardColor: NSColor(calibratedRed: 0.12, green: 0.20, blue: 0.27, alpha: 1.0),
+                cardBorderColor: NSColor(calibratedRed: 0.25, green: 0.50, blue: 0.62, alpha: 1.0)
+            )
+        case .wandering:
+            return TimelineStyle(
+                accentColor: NSColor(calibratedRed: 0.97, green: 0.73, blue: 0.36, alpha: 1.0),
+                connectorColor: NSColor(calibratedRed: 0.57, green: 0.43, blue: 0.20, alpha: 1.0),
+                cardColor: NSColor(calibratedRed: 0.27, green: 0.21, blue: 0.13, alpha: 1.0),
+                cardBorderColor: NSColor(calibratedRed: 0.58, green: 0.43, blue: 0.24, alpha: 1.0)
+            )
+        case .resting:
+            return TimelineStyle(
+                accentColor: NSColor(calibratedRed: 0.49, green: 0.84, blue: 0.62, alpha: 1.0),
+                connectorColor: NSColor(calibratedRed: 0.27, green: 0.53, blue: 0.38, alpha: 1.0),
+                cardColor: NSColor(calibratedRed: 0.13, green: 0.24, blue: 0.19, alpha: 1.0),
+                cardBorderColor: NSColor(calibratedRed: 0.29, green: 0.57, blue: 0.42, alpha: 1.0)
+            )
+        }
     }
 }

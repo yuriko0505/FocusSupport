@@ -4,6 +4,7 @@ extension FocusSupportApp {
     private struct PersistedLogEntry: Codable {
         let time: String
         let response: String
+        let type: String?
     }
 
     func isValidImageFileName(_ fileName: String) -> Bool {
@@ -258,7 +259,7 @@ extension FocusSupportApp {
     }
 
     func appendLogEntry(_ entry: LogEntry) {
-        let persisted = PersistedLogEntry(time: entry.time, response: entry.response)
+        let persisted = PersistedLogEntry(time: entry.time, response: entry.response, type: entry.type)
         guard let encoded = try? JSONEncoder().encode(persisted) else {
             showAlert(title: "保存に失敗", message: "ログの保存に失敗しました。")
             return
@@ -296,18 +297,31 @@ extension FocusSupportApp {
         return decoded.isEmpty ? nil : decoded
     }
 
-    private func parseJSONLineEntries(_ text: String) -> [LogWindowController.LogItem] {
+    private func decodePersistedLogEntries(_ text: String) -> [PersistedLogEntry] {
         let decoder = JSONDecoder()
         let lines = text.split(whereSeparator: \.isNewline)
-        var items: [LogWindowController.LogItem] = []
-        items.reserveCapacity(lines.count)
+        var entries: [PersistedLogEntry] = []
+        entries.reserveCapacity(lines.count)
 
         for line in lines {
             guard let data = line.data(using: .utf8),
                   let entry = try? decoder.decode(PersistedLogEntry.self, from: data) else {
                 continue
             }
-            items.append(LogWindowController.LogItem(time: entry.time, response: entry.response))
+            entries.append(entry)
+        }
+
+        return entries
+    }
+
+    private func parseJSONLineEntries(_ text: String) -> [LogWindowController.LogItem] {
+        var items: [LogWindowController.LogItem] = []
+        let entries = decodePersistedLogEntries(text)
+        items.reserveCapacity(entries.count)
+
+        for entry in entries {
+            let state = CheckinState.from(rawValue: entry.type)
+            items.append(LogWindowController.LogItem(time: entry.time, response: entry.response, state: state))
         }
 
         return items
@@ -331,6 +345,43 @@ extension FocusSupportApp {
                 count = 0
             }
             results.append((date: date, count: count))
+        }
+
+        return results
+    }
+
+    func recentDailyLogBreakdowns(days: Int) -> [(date: Date, focused: Int, wandering: Int, resting: Int)] {
+        guard days > 0 else { return [] }
+
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        var results: [(date: Date, focused: Int, wandering: Int, resting: Int)] = []
+        results.reserveCapacity(days)
+
+        for offset in stride(from: days - 1, through: 0, by: -1) {
+            guard let date = calendar.date(byAdding: .day, value: -offset, to: today) else { continue }
+            let url = logFileURL(for: date)
+            guard let text = readLogText(from: url), text.isEmpty == false else {
+                results.append((date: date, focused: 0, wandering: 0, resting: 0))
+                continue
+            }
+
+            var focused = 0
+            var wandering = 0
+            var resting = 0
+
+            for entry in decodePersistedLogEntries(text) {
+                switch CheckinState.from(rawValue: entry.type) {
+                case .focused:
+                    focused += 1
+                case .wandering:
+                    wandering += 1
+                case .resting:
+                    resting += 1
+                }
+            }
+
+            results.append((date: date, focused: focused, wandering: wandering, resting: resting))
         }
 
         return results

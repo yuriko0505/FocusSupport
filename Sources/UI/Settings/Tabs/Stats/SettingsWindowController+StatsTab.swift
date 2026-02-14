@@ -55,13 +55,13 @@ extension SettingsWindowController {
     }
 
     func refreshStatsView() {
-        let (checkins, focused, wandering) = getStats()
-        statsSummaryLabel.stringValue = "今日のチェックイン: \(checkins)\n集中: \(focused)\nぼんやり: \(wandering)"
+        let (checkins, focused, wandering, resting) = getStats()
+        statsSummaryLabel.stringValue = "今日のチェックイン: \(checkins)\n集中: \(focused)\nぼんやり: \(wandering)\n休憩中: \(resting)"
 
-        let weeklyCounts = getRecentDailyLogCounts(7)
-        let weeklyTotal = weeklyCounts.reduce(0) { $0 + $1.count }
-        weeklyOverviewLabel.stringValue = "合計 \(weeklyTotal) 件 (0件の日を含む)"
-        weeklyLineChartView.items = weeklyCounts
+        let weeklyBreakdowns = getRecentDailyLogBreakdowns(7)
+        let weeklyTotal = weeklyBreakdowns.reduce(0) { $0 + $1.total }
+        weeklyOverviewLabel.stringValue = "合計 \(weeklyTotal) 件 (集中/ぼんやり/休憩中)"
+        weeklyLineChartView.items = weeklyBreakdowns
     }
 
     func appVersionDisplayText() -> String {
@@ -82,9 +82,15 @@ extension SettingsWindowController {
 }
 
 final class WeeklyLineChartView: NSView {
-    var items: [SettingsWindowController.DailyLogCount] = [] {
+    var items: [SettingsWindowController.DailyLogBreakdown] = [] {
         didSet { needsDisplay = true }
     }
+
+    // Keep the original blue-themed design while visualizing 3 layers.
+    private let restingColor = NSColor(calibratedRed: 0.61, green: 1.0, blue: 0.0, alpha: 0.34)
+    private let wanderingColor = NSColor(calibratedRed: 1.0, green: 0.96, blue: 0.18, alpha: 0.34)
+    private let focusedColor = NSColor(calibratedRed: 0.29, green: 0.76, blue: 1.0, alpha: 0.34)
+    private let totalLineColor = NSColor(calibratedRed: 0.32, green: 0.82, blue: 1.0, alpha: 1.0)
 
     private let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()
@@ -111,13 +117,21 @@ final class WeeklyLineChartView: NSView {
 
         drawGrid(in: plotRect)
 
-        let maxCount = max(items.map(\.count).max() ?? 0, 1)
-        let points = makePoints(in: plotRect, maxCount: maxCount)
-        guard points.isEmpty == false else { return }
+        let maxCount = max(items.map(\.total).max() ?? 0, 1)
+        let xPositions = makeXPositions(in: plotRect)
+        guard xPositions.isEmpty == false else { return }
 
-        drawArea(in: plotRect, points: points)
-        drawLine(points: points)
-        drawPoints(points: points)
+        let restingTop = makeStackPoints(in: plotRect, xPositions: xPositions, maxCount: maxCount) { $0.resting }
+        let wanderingTop = makeStackPoints(in: plotRect, xPositions: xPositions, maxCount: maxCount) { $0.resting + $0.wandering }
+        let focusedTop = makeStackPoints(in: plotRect, xPositions: xPositions, maxCount: maxCount) { $0.total }
+        let baseline = xPositions.map { CGPoint(x: $0, y: plotRect.minY) }
+
+        // Requested order: lower resting, middle wandering, upper focused.
+        drawStackLayer(lower: baseline, upper: restingTop, color: restingColor)
+        drawStackLayer(lower: restingTop, upper: wanderingTop, color: wanderingColor)
+        drawStackLayer(lower: wanderingTop, upper: focusedTop, color: focusedColor)
+        drawLine(points: focusedTop)
+        drawPoints(points: focusedTop)
         drawLabels(in: plotRect, maxCount: maxCount)
     }
 
@@ -145,44 +159,52 @@ final class WeeklyLineChartView: NSView {
         gridPath.stroke()
     }
 
-    private func makePoints(in rect: CGRect, maxCount: Int) -> [CGPoint] {
+    private func makeXPositions(in rect: CGRect) -> [CGFloat] {
         guard items.isEmpty == false else { return [] }
 
-        return items.enumerated().map { index, item in
-            let x: CGFloat
+        return items.enumerated().map { index, _ in
             if items.count == 1 {
-                x = rect.midX
-            } else {
-                x = rect.minX + rect.width * CGFloat(index) / CGFloat(items.count - 1)
+                return rect.midX
             }
-            let yRatio = CGFloat(item.count) / CGFloat(maxCount)
-            let y = rect.minY + rect.height * yRatio
-            return CGPoint(x: x, y: y)
+            return rect.minX + rect.width * CGFloat(index) / CGFloat(items.count - 1)
         }
     }
 
-    private func drawArea(in rect: CGRect, points: [CGPoint]) {
-        guard let first = points.first, let last = points.last else { return }
-        let areaPath = NSBezierPath()
-        areaPath.move(to: CGPoint(x: first.x, y: rect.minY))
-        points.forEach { areaPath.line(to: $0) }
-        areaPath.line(to: CGPoint(x: last.x, y: rect.minY))
-        areaPath.close()
+    private func makeStackPoints(in rect: CGRect,
+                                 xPositions: [CGFloat],
+                                 maxCount: Int,
+                                 value: (SettingsWindowController.DailyLogBreakdown) -> Int) -> [CGPoint] {
+        zip(xPositions, items).map { x, item in
+            let yRatio = CGFloat(value(item)) / CGFloat(maxCount)
+            return CGPoint(x: x, y: rect.minY + rect.height * yRatio)
+        }
+    }
 
-        NSColor(calibratedRed: 0.20, green: 0.68, blue: 1.00, alpha: 0.25).setFill()
-        areaPath.fill()
+    private func drawStackLayer(lower: [CGPoint], upper: [CGPoint], color: NSColor) {
+        guard lower.count == upper.count, lower.isEmpty == false else { return }
+        let path = NSBezierPath()
+        path.move(to: lower[0])
+        for point in upper {
+            path.line(to: point)
+        }
+        for point in lower.reversed() {
+            path.line(to: point)
+        }
+        path.close()
+        color.setFill()
+        path.fill()
     }
 
     private func drawLine(points: [CGPoint]) {
         let linePath = NSBezierPath()
         linePath.lineJoinStyle = .round
         linePath.lineCapStyle = .round
-        linePath.lineWidth = 2.5
+        linePath.lineWidth = 1.8
         if let first = points.first {
             linePath.move(to: first)
             points.dropFirst().forEach { linePath.line(to: $0) }
         }
-        NSColor(calibratedRed: 0.32, green: 0.82, blue: 1.00, alpha: 1).setStroke()
+        totalLineColor.setStroke()
         linePath.stroke()
     }
 
@@ -191,7 +213,7 @@ final class WeeklyLineChartView: NSView {
             let outerRect = CGRect(x: point.x - 4.5, y: point.y - 4.5, width: 9, height: 9)
             let innerRect = CGRect(x: point.x - 2.2, y: point.y - 2.2, width: 4.4, height: 4.4)
 
-            NSColor(calibratedRed: 0.32, green: 0.82, blue: 1.00, alpha: 1).setFill()
+            totalLineColor.setFill()
             NSBezierPath(ovalIn: outerRect).fill()
             NSColor.white.setFill()
             NSBezierPath(ovalIn: innerRect).fill()
@@ -225,4 +247,5 @@ final class WeeklyLineChartView: NSView {
             text.draw(at: point, withAttributes: dateAttributes)
         }
     }
+
 }

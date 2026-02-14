@@ -14,6 +14,7 @@ final class FocusSupportApp: NSObject, NSApplicationDelegate, UNUserNotification
     var checkinCount = 0
     var focusedCount = 0
     var wanderingCount = 0
+    var restingCount = 0
     var todayLogs: [LogEntry] = []
     var questions: [String] = [
         "今何してる？",
@@ -66,7 +67,7 @@ final class FocusSupportApp: NSObject, NSApplicationDelegate, UNUserNotification
 
         let menu = NSMenu()
         menuCheckinItem = NSMenuItem(title: "今日のチェックイン: 0回", action: nil, keyEquivalent: "")
-        menuFocusItem = NSMenuItem(title: "集中: 0回 / ぼんやり: 0回", action: nil, keyEquivalent: "")
+        menuFocusItem = NSMenuItem(title: "集中: 0回 / ぼんやり: 0回 / 休憩中: 0回", action: nil, keyEquivalent: "")
         menu.addItem(menuCheckinItem)
         menu.addItem(menuFocusItem)
         menu.addItem(NSMenuItem.separator())

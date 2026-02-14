@@ -14,6 +14,11 @@ private final class CheckinInputTextField: NSTextField {
 }
 
 extension FocusSupportApp {
+    private struct CheckinInputResult {
+        let responseText: String
+        let state: CheckinState
+    }
+
     func alertIconImage() -> NSImage? {
         guard let image = appIconImage() else { return nil }
         let targetSize = NSSize(width: 64, height: 64)
@@ -36,38 +41,31 @@ extension FocusSupportApp {
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
             let response = self.promptForResponse(question: question)
-            guard let responseText = response?.trimmingCharacters(in: .whitespacesAndNewlines), !responseText.isEmpty else {
+            guard let result = response else {
                 return
             }
 
-            self.processResponse(question: question, userInput: responseText)
+            self.processResponse(question: question, userInput: result.responseText, state: result.state)
         }
     }
 
-    func processResponse(question: String, userInput: String) {
-        let wanderingKeywords = ["ぼーっと", "特に", "わからない", "なんとなく", "暇"]
-        let isWandering = wanderingKeywords.contains { userInput.contains($0) }
-
-        if isWandering {
-            wanderingCount += 1
-        } else {
+    func processResponse(question: String, userInput: String, state: CheckinState) {
+        switch state {
+        case .focused:
             focusedCount += 1
+        case .wandering:
+            wanderingCount += 1
+        case .resting:
+            restingCount += 1
         }
         updateMenuStats()
 
         let timeText = timeFormatter.string(from: Date())
-        let entry = LogEntry(time: timeText, response: userInput, type: isWandering ? "wandering" : "focused")
+        let entry = LogEntry(time: timeText, response: userInput, type: state.rawValue)
         todayLogs.append(entry)
         appendLogEntry(entry)
 
-        let feedback: String
-        if isWandering {
-            feedback = "ぼんやりしてたみたいだね。今から集中モードに切り替えよう！"
-        } else {
-            feedback = "いい感じ！その調子で進めていこう。"
-        }
-
-        showAlert(title: "フィードバック", message: feedback)
+        showAlert(title: "フィードバック", message: state.feedbackMessage)
     }
 
     @objc func showLogsMenuTapped() {
@@ -105,13 +103,18 @@ extension FocusSupportApp {
         if settingsWindowController == nil {
             settingsWindowController = SettingsWindowController(
                 getStats: { [weak self] in
-                    guard let self else { return ("0回", "0回", "0回") }
-                    return ("\(self.checkinCount)回", "\(self.focusedCount)回", "\(self.wanderingCount)回")
+                    guard let self else { return ("0回", "0回", "0回", "0回") }
+                    return ("\(self.checkinCount)回", "\(self.focusedCount)回", "\(self.wanderingCount)回", "\(self.restingCount)回")
                 },
-                getRecentDailyLogCounts: { [weak self] days in
+                getRecentDailyLogBreakdowns: { [weak self] days in
                     guard let self else { return [] }
-                    return self.recentDailyLogCounts(days: days).map {
-                        SettingsWindowController.DailyLogCount(date: $0.date, count: $0.count)
+                    return self.recentDailyLogBreakdowns(days: days).map {
+                        SettingsWindowController.DailyLogBreakdown(
+                            date: $0.date,
+                            focused: $0.focused,
+                            wandering: $0.wandering,
+                            resting: $0.resting
+                        )
                     }
                 },
                 getQuestions: { [weak self] in
@@ -163,7 +166,7 @@ extension FocusSupportApp {
         NSApplication.shared.terminate(nil)
     }
 
-    func promptForResponse(question: String) -> String? {
+    private func promptForResponse(question: String) -> CheckinInputResult? {
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
         alert.messageText = question
@@ -180,9 +183,9 @@ extension FocusSupportApp {
             alert.icon = transparentImage
         }
 
-        let containerView = NSView(frame: NSRect(x: 0, y: 0, width: 320, height: 240))
+        let containerView = NSView(frame: NSRect(x: 0, y: 0, width: 320, height: 280))
 
-        var yPosition: CGFloat = 240
+        var yPosition: CGFloat = 280
 
         if let image = currentPromptImage() {
             let imageView = NSImageView(frame: NSRect(x: 0, y: yPosition - 196, width: 320, height: 196))
@@ -192,7 +195,24 @@ extension FocusSupportApp {
             yPosition -= 196
         }
 
-        let inputField = CheckinInputTextField(frame: NSRect(x: 0, y: yPosition - 40, width: 320, height: 24))
+        let stateLabel = NSTextField(labelWithString: "今の状態")
+        stateLabel.frame = NSRect(x: 0, y: yPosition - 40, width: 90, height: 20)
+        containerView.addSubview(stateLabel)
+
+        let focusedRadio = NSButton(radioButtonWithTitle: CheckinState.focused.label, target: nil, action: nil)
+        focusedRadio.frame = NSRect(x: 96, y: yPosition - 40, width: 70, height: 20)
+        focusedRadio.state = .on
+        containerView.addSubview(focusedRadio)
+
+        let wanderingRadio = NSButton(radioButtonWithTitle: CheckinState.wandering.label, target: nil, action: nil)
+        wanderingRadio.frame = NSRect(x: 166, y: yPosition - 40, width: 80, height: 20)
+        containerView.addSubview(wanderingRadio)
+
+        let restingRadio = NSButton(radioButtonWithTitle: CheckinState.resting.label, target: nil, action: nil)
+        restingRadio.frame = NSRect(x: 246, y: yPosition - 40, width: 74, height: 20)
+        containerView.addSubview(restingRadio)
+
+        let inputField = CheckinInputTextField(frame: NSRect(x: 0, y: yPosition - 74, width: 320, height: 24))
         inputField.placeholderString = "今の思考を一言で書いてください"
         containerView.addSubview(inputField)
 
@@ -207,7 +227,19 @@ extension FocusSupportApp {
 
         let response = alert.runModal()
         if response == .alertFirstButtonReturn {
-            return inputField.stringValue
+            let text = inputField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard text.isEmpty == false else {
+                return nil
+            }
+            let selectedState: CheckinState
+            if wanderingRadio.state == .on {
+                selectedState = .wandering
+            } else if restingRadio.state == .on {
+                selectedState = .resting
+            } else {
+                selectedState = .focused
+            }
+            return CheckinInputResult(responseText: text, state: selectedState)
         }
         return nil
     }
@@ -247,7 +279,7 @@ extension FocusSupportApp {
 
     func updateMenuStats() {
         menuCheckinItem.title = "今日のチェックイン: \(checkinCount)回"
-        menuFocusItem.title = "集中: \(focusedCount)回 / ぼんやり: \(wanderingCount)回"
+        menuFocusItem.title = "集中: \(focusedCount)回 / ぼんやり: \(wanderingCount)回 / 休憩中: \(restingCount)回"
     }
 
     func randomizePromptImageIfNeeded() {

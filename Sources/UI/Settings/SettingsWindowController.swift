@@ -5,9 +5,19 @@ final class SettingsWindowController: NSWindowController, NSTableViewDataSource,
         let date: Date
         let count: Int
     }
+    struct DailyLogBreakdown {
+        let date: Date
+        let focused: Int
+        let wandering: Int
+        let resting: Int
 
-    let getStats: () -> (String, String, String)
-    let getRecentDailyLogCounts: (Int) -> [DailyLogCount]
+        var total: Int {
+            focused + wandering + resting
+        }
+    }
+
+    let getStats: () -> (String, String, String, String)
+    let getRecentDailyLogBreakdowns: (Int) -> [DailyLogBreakdown]
     let getQuestions: () -> [String]
     let setQuestions: ([String]) -> Void
     let getImages: () -> [String]
@@ -34,8 +44,8 @@ final class SettingsWindowController: NSWindowController, NSTableViewDataSource,
     let weeklyOverviewLabel = NSTextField(labelWithString: "")
     let weeklyLineChartView = WeeklyLineChartView()
 
-    init(getStats: @escaping () -> (String, String, String),
-         getRecentDailyLogCounts: @escaping (Int) -> [DailyLogCount],
+    init(getStats: @escaping () -> (String, String, String, String),
+         getRecentDailyLogBreakdowns: @escaping (Int) -> [DailyLogBreakdown],
          getQuestions: @escaping () -> [String],
          setQuestions: @escaping ([String]) -> Void,
          getImages: @escaping () -> [String],
@@ -45,9 +55,9 @@ final class SettingsWindowController: NSWindowController, NSTableViewDataSource,
          setAppIcon: @escaping (URL) -> Void,
          resetAppIcon: @escaping () -> Void,
          getNotificationHours: @escaping () -> (Int, Int),
-         setNotificationHours: @escaping (Int, Int) -> Void) {
+        setNotificationHours: @escaping (Int, Int) -> Void) {
         self.getStats = getStats
-        self.getRecentDailyLogCounts = getRecentDailyLogCounts
+        self.getRecentDailyLogBreakdowns = getRecentDailyLogBreakdowns
         self.getQuestions = getQuestions
         self.setQuestions = setQuestions
         self.getImages = getImages
