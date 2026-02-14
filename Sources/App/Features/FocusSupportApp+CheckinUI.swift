@@ -221,7 +221,9 @@ extension FocusSupportApp {
               index < imageFiles.count else {
             return nil
         }
-        let url = imagesDirectory().appendingPathComponent(imageFiles[index])
+        guard let url = safeImageFileURL(fileName: imageFiles[index]) else {
+            return nil
+        }
         return try? UNNotificationAttachment(identifier: "promptImage", url: url, options: nil)
     }
 

@@ -6,6 +6,23 @@ extension FocusSupportApp {
         let response: String
     }
 
+    func isValidImageFileName(_ fileName: String) -> Bool {
+        let trimmed = fileName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty { return false }
+        if trimmed == "." || trimmed == ".." { return false }
+        if trimmed.contains("/") || trimmed.contains(":") { return false }
+        return true
+    }
+
+    func safeImageFileURL(fileName: String) -> URL? {
+        guard isValidImageFileName(fileName) else { return nil }
+        let dir = imagesDirectory().resolvingSymlinksInPath()
+        let fileURL = dir.appendingPathComponent(fileName).resolvingSymlinksInPath()
+        let dirPrefix = dir.path.hasSuffix("/") ? dir.path : dir.path + "/"
+        guard fileURL.path.hasPrefix(dirPrefix) else { return nil }
+        return fileURL
+    }
+
     func existingImageFileNames() -> [String] {
         let dir = imagesDirectory()
         let fileManager = FileManager.default
@@ -15,11 +32,12 @@ extension FocusSupportApp {
         return items
             .filter { $0.hasDirectoryPath == false }
             .map(\.lastPathComponent)
+            .filter(isValidImageFileName)
             .sorted()
     }
 
     func loadImage(named fileName: String) -> NSImage? {
-        let url = imagesDirectory().appendingPathComponent(fileName)
+        guard let url = safeImageFileURL(fileName: fileName) else { return nil }
         guard let originalImage = NSImage(contentsOf: url) else { return nil }
 
         let maxSize: CGFloat = 196
@@ -45,7 +63,7 @@ extension FocusSupportApp {
 
     func loadImageSettings() {
         let defaults = UserDefaults.standard
-        let configuredFiles = defaults.stringArray(forKey: "imageFiles") ?? []
+        let configuredFiles = (defaults.stringArray(forKey: "imageFiles") ?? []).filter(isValidImageFileName)
         let existingFiles = existingImageFileNames()
 
         if configuredFiles.isEmpty {
@@ -130,6 +148,10 @@ extension FocusSupportApp {
             let dir = imagesDirectory()
             try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
             let fileName = url.lastPathComponent
+            guard isValidImageFileName(fileName) else {
+                showAlert(title: "画像の追加に失敗", message: "画像ファイル名が不正です。別の画像で試してください。")
+                return
+            }
             let target = dir.appendingPathComponent(fileName)
             if FileManager.default.fileExists(atPath: target.path) == false {
                 try FileManager.default.copyItem(at: url, to: target)
@@ -146,8 +168,12 @@ extension FocusSupportApp {
     func removeImage(at index: Int) {
         guard index >= 0 && index < imageFiles.count else { return }
         let fileName = imageFiles[index]
-        let url = imagesDirectory().appendingPathComponent(fileName)
-        try? FileManager.default.removeItem(at: url)
+        if let fileURL = safeImageFileURL(fileName: fileName) {
+            let values = try? fileURL.resourceValues(forKeys: [.isRegularFileKey])
+            if values?.isRegularFile == true {
+                try? FileManager.default.removeItem(at: fileURL)
+            }
+        }
         imageFiles.remove(at: index)
         saveImageSettings()
     }
