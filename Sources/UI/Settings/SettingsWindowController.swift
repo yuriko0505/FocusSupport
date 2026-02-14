@@ -1,7 +1,13 @@
 import AppKit
 
 final class SettingsWindowController: NSWindowController, NSTableViewDataSource, NSTableViewDelegate, NSTextFieldDelegate {
+    struct DailyLogCount {
+        let date: Date
+        let count: Int
+    }
+
     let getStats: () -> (String, String, String)
+    let getRecentDailyLogCounts: (Int) -> [DailyLogCount]
     let getQuestions: () -> [String]
     let setQuestions: ([String]) -> Void
     let getImages: () -> [String]
@@ -24,8 +30,12 @@ final class SettingsWindowController: NSWindowController, NSTableViewDataSource,
     let rowHeight: CGFloat = 26
     let startHourPopup = NSPopUpButton()
     let endHourPopup = NSPopUpButton()
+    let statsSummaryLabel = NSTextField(labelWithString: "")
+    let weeklyOverviewLabel = NSTextField(labelWithString: "")
+    let weeklyLineChartView = WeeklyLineChartView()
 
     init(getStats: @escaping () -> (String, String, String),
+         getRecentDailyLogCounts: @escaping (Int) -> [DailyLogCount],
          getQuestions: @escaping () -> [String],
          setQuestions: @escaping ([String]) -> Void,
          getImages: @escaping () -> [String],
@@ -37,6 +47,7 @@ final class SettingsWindowController: NSWindowController, NSTableViewDataSource,
          getNotificationHours: @escaping () -> (Int, Int),
          setNotificationHours: @escaping (Int, Int) -> Void) {
         self.getStats = getStats
+        self.getRecentDailyLogCounts = getRecentDailyLogCounts
         self.getQuestions = getQuestions
         self.setQuestions = setQuestions
         self.getImages = getImages
@@ -98,6 +109,7 @@ final class SettingsWindowController: NSWindowController, NSTableViewDataSource,
         questions = getQuestions()
         images = getImages()
         appIconFileName = getAppIconFileName()
+        refreshStatsView()
         questionsTableView.reloadData()
         imagesTableView.reloadData()
         refreshAppIconName()

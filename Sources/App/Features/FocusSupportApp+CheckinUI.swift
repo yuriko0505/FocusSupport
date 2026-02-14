@@ -108,6 +108,12 @@ extension FocusSupportApp {
                     guard let self else { return ("0回", "0回", "0回") }
                     return ("\(self.checkinCount)回", "\(self.focusedCount)回", "\(self.wanderingCount)回")
                 },
+                getRecentDailyLogCounts: { [weak self] days in
+                    guard let self else { return [] }
+                    return self.recentDailyLogCounts(days: days).map {
+                        SettingsWindowController.DailyLogCount(date: $0.date, count: $0.count)
+                    }
+                },
                 getQuestions: { [weak self] in
                     return self?.questions ?? []
                 },

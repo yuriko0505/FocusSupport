@@ -313,4 +313,27 @@ extension FocusSupportApp {
         return items
     }
 
+    func recentDailyLogCounts(days: Int) -> [(date: Date, count: Int)] {
+        guard days > 0 else { return [] }
+
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        var results: [(date: Date, count: Int)] = []
+        results.reserveCapacity(days)
+
+        for offset in stride(from: days - 1, through: 0, by: -1) {
+            guard let date = calendar.date(byAdding: .day, value: -offset, to: today) else { continue }
+            let url = logFileURL(for: date)
+            let count: Int
+            if let text = readLogText(from: url), text.isEmpty == false {
+                count = text.split(whereSeparator: \.isNewline).count
+            } else {
+                count = 0
+            }
+            results.append((date: date, count: count))
+        }
+
+        return results
+    }
+
 }
