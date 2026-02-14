@@ -1,6 +1,11 @@
 import AppKit
 
 extension FocusSupportApp {
+    private struct PersistedLogEntry: Codable {
+        let time: String
+        let response: String
+    }
+
     func existingImageFileNames() -> [String] {
         let dir = imagesDirectory()
         let fileManager = FileManager.default
@@ -227,9 +232,12 @@ extension FocusSupportApp {
     }
 
     func appendLogEntry(_ entry: LogEntry) {
-        let emoji = entry.type == "wandering" ? "😴" : "✨"
-        let line = "\(emoji) \(entry.time) - \(entry.question)\n   → \(entry.response)\n\n"
-        let data = Data(line.utf8)
+        let persisted = PersistedLogEntry(time: entry.time, response: entry.response)
+        guard let encoded = try? JSONEncoder().encode(persisted) else {
+            showAlert(title: "保存に失敗", message: "ログの保存に失敗しました。")
+            return
+        }
+        let data = encoded + Data("\n".utf8)
         let url = logFileURL(for: Date())
         do {
             try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -251,5 +259,69 @@ extension FocusSupportApp {
             return nil
         }
         return try? String(contentsOf: url, encoding: .utf8)
+    }
+
+    func readLogEntries(from url: URL) -> [LogWindowController.LogItem]? {
+        guard let text = readLogText(from: url), text.isEmpty == false else {
+            return nil
+        }
+
+        let decoded = parseJSONLineEntries(text)
+        if decoded.isEmpty == false {
+            return decoded
+        }
+
+        return parseLegacyPlainEntries(text)
+    }
+
+    private func parseJSONLineEntries(_ text: String) -> [LogWindowController.LogItem] {
+        let decoder = JSONDecoder()
+        let lines = text.split(whereSeparator: \.isNewline)
+        var items: [LogWindowController.LogItem] = []
+        items.reserveCapacity(lines.count)
+
+        for line in lines {
+            guard let data = line.data(using: .utf8),
+                  let entry = try? decoder.decode(PersistedLogEntry.self, from: data) else {
+                continue
+            }
+            items.append(LogWindowController.LogItem(time: entry.time, response: entry.response))
+        }
+
+        return items
+    }
+
+    private func parseLegacyPlainEntries(_ text: String) -> [LogWindowController.LogItem] {
+        let pattern = #"^[^\d]*(\d{2}:\d{2})\s*-\s*.*$"#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.anchorsMatchLines]) else {
+            return []
+        }
+
+        let lines = text.split(whereSeparator: \.isNewline)
+        var items: [LogWindowController.LogItem] = []
+        var i = 0
+
+        while i < lines.count {
+            let headerLine = String(lines[i])
+            let range = NSRange(location: 0, length: headerLine.utf16.count)
+            if let match = regex.firstMatch(in: headerLine, options: [], range: range),
+               let timeRange = Range(match.range(at: 1), in: headerLine),
+               i + 1 < lines.count {
+                var responseLine = String(lines[i + 1]).trimmingCharacters(in: .whitespaces)
+                if responseLine.hasPrefix("→") {
+                    responseLine.removeFirst()
+                    responseLine = responseLine.trimmingCharacters(in: .whitespaces)
+                }
+                if responseLine.isEmpty == false {
+                    let time = String(headerLine[timeRange])
+                    items.append(LogWindowController.LogItem(time: time, response: responseLine))
+                }
+                i += 2
+                continue
+            }
+            i += 1
+        }
+
+        return items
     }
 }

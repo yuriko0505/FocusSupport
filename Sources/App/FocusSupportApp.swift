@@ -42,7 +42,6 @@ final class FocusSupportApp: NSObject, NSApplicationDelegate, UNUserNotification
 
     struct LogEntry {
         let time: String
-        let question: String
         let response: String
         let type: String
     }
@@ -73,7 +72,7 @@ final class FocusSupportApp: NSObject, NSApplicationDelegate, UNUserNotification
         menu.addItem(NSMenuItem.separator())
 
         menu.addItem(NSMenuItem(title: "今すぐ壁打ち", action: #selector(manualCheckin), keyEquivalent: ""))
-        menu.addItem(NSMenuItem(title: "今日のログを見る", action: #selector(showLogs), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: "今日のログを見る", action: #selector(showLogsMenuTapped), keyEquivalent: ""))
         menu.addItem(NSMenuItem.separator())
         menu.addItem(NSMenuItem(title: "設定", action: #selector(showSettings), keyEquivalent: ""))
         menu.addItem(NSMenuItem(title: "終了", action: #selector(quitApp), keyEquivalent: "q"))

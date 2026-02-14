@@ -1,6 +1,18 @@
 import AppKit
 import UserNotifications
 
+private final class CheckinInputTextField: NSTextField {
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        let key = event.charactersIgnoringModifiers?.lowercased()
+        if modifiers == .command, key == "v" {
+            NSApp.sendAction(#selector(NSText.paste(_:)), to: nil, from: self)
+            return true
+        }
+        return super.performKeyEquivalent(with: event)
+    }
+}
+
 extension FocusSupportApp {
     func alertIconImage() -> NSImage? {
         guard let image = appIconImage() else { return nil }
@@ -21,12 +33,15 @@ extension FocusSupportApp {
         checkinCount += 1
         updateMenuStats()
         let question = questions.randomElement() ?? "今何してる？"
-        let response = promptForResponse(question: question)
-        guard let responseText = response?.trimmingCharacters(in: .whitespacesAndNewlines), !responseText.isEmpty else {
-            return
-        }
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            let response = self.promptForResponse(question: question)
+            guard let responseText = response?.trimmingCharacters(in: .whitespacesAndNewlines), !responseText.isEmpty else {
+                return
+            }
 
-        processResponse(question: question, userInput: responseText)
+            self.processResponse(question: question, userInput: responseText)
+        }
     }
 
     func processResponse(question: String, userInput: String) {
@@ -41,7 +56,7 @@ extension FocusSupportApp {
         updateMenuStats()
 
         let timeText = timeFormatter.string(from: Date())
-        let entry = LogEntry(time: timeText, question: question, response: userInput, type: isWandering ? "wandering" : "focused")
+        let entry = LogEntry(time: timeText, response: userInput, type: isWandering ? "wandering" : "focused")
         todayLogs.append(entry)
         appendLogEntry(entry)
 
@@ -55,21 +70,34 @@ extension FocusSupportApp {
         showAlert(title: "フィードバック", message: feedback)
     }
 
-    @objc func showLogs() {
-        let logURL = logFileURL(for: Date())
-        guard let logText = readLogText(from: logURL) else {
-            showAlert(title: "まだログがありません", message: "チェックインをしてみましょう！")
-            return
+    @objc func showLogsMenuTapped() {
+        DispatchQueue.main.async { [weak self] in
+            self?.showLogsWindow()
         }
+    }
 
-        let decoratedText = "【今日の思考ログ】\n\n" + logText
+    func showLogsWindow() {
+        let logURL = logFileURL(for: Date())
+        let logEntries = readLogEntries(from: logURL) ?? []
+
         if logWindowController == nil {
             logWindowController = LogWindowController()
         }
-        logWindowController?.setLogText(decoratedText)
-        logWindowController?.showWindow(nil)
-        logWindowController?.window?.center()
-        logWindowController?.window?.makeKeyAndOrderFront(nil)
+        guard let logWindowController else {
+            showAlert(title: "表示に失敗", message: "ログウィンドウを開けませんでした。")
+            return
+        }
+
+        logWindowController.setLogEntries(logEntries)
+        logWindowController.showWindow(nil)
+        guard let window = logWindowController.window else {
+            showAlert(title: "表示に失敗", message: "ログウィンドウの初期化に失敗しました。")
+            return
+        }
+
+        window.center()
+        window.makeKeyAndOrderFront(nil)
+        window.orderFrontRegardless()
         NSApp.activate(ignoringOtherApps: true)
     }
 
@@ -158,7 +186,7 @@ extension FocusSupportApp {
             yPosition -= 196
         }
 
-        let inputField = NSTextField(frame: NSRect(x: 0, y: yPosition - 40, width: 320, height: 24))
+        let inputField = CheckinInputTextField(frame: NSRect(x: 0, y: yPosition - 40, width: 320, height: 24))
         inputField.placeholderString = "今の思考を一言で書いてください"
         containerView.addSubview(inputField)
 
@@ -166,6 +194,10 @@ extension FocusSupportApp {
 
         alert.addButton(withTitle: "送信")
         alert.addButton(withTitle: "スキップ")
+
+        let alertWindow = alert.window
+        alertWindow.initialFirstResponder = inputField
+        alertWindow.makeFirstResponder(inputField)
 
         let response = alert.runModal()
         if response == .alertFirstButtonReturn {
