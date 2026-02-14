@@ -293,11 +293,7 @@ extension FocusSupportApp {
         }
 
         let decoded = parseJSONLineEntries(text)
-        if decoded.isEmpty == false {
-            return decoded
-        }
-
-        return parseLegacyPlainEntries(text)
+        return decoded.isEmpty ? nil : decoded
     }
 
     private func parseJSONLineEntries(_ text: String) -> [LogWindowController.LogItem] {
@@ -317,37 +313,4 @@ extension FocusSupportApp {
         return items
     }
 
-    private func parseLegacyPlainEntries(_ text: String) -> [LogWindowController.LogItem] {
-        let pattern = #"^[^\d]*(\d{2}:\d{2})\s*-\s*.*$"#
-        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.anchorsMatchLines]) else {
-            return []
-        }
-
-        let lines = text.split(whereSeparator: \.isNewline)
-        var items: [LogWindowController.LogItem] = []
-        var i = 0
-
-        while i < lines.count {
-            let headerLine = String(lines[i])
-            let range = NSRange(location: 0, length: headerLine.utf16.count)
-            if let match = regex.firstMatch(in: headerLine, options: [], range: range),
-               let timeRange = Range(match.range(at: 1), in: headerLine),
-               i + 1 < lines.count {
-                var responseLine = String(lines[i + 1]).trimmingCharacters(in: .whitespaces)
-                if responseLine.hasPrefix("→") {
-                    responseLine.removeFirst()
-                    responseLine = responseLine.trimmingCharacters(in: .whitespaces)
-                }
-                if responseLine.isEmpty == false {
-                    let time = String(headerLine[timeRange])
-                    items.append(LogWindowController.LogItem(time: time, response: responseLine))
-                }
-                i += 2
-                continue
-            }
-            i += 1
-        }
-
-        return items
-    }
 }
