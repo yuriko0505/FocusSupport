@@ -199,18 +199,19 @@ extension FocusSupportApp {
         stateLabel.frame = NSRect(x: 0, y: yPosition - 40, width: 90, height: 20)
         containerView.addSubview(stateLabel)
 
-        let focusedRadio = NSButton(radioButtonWithTitle: CheckinState.focused.label, target: nil, action: nil)
-        focusedRadio.frame = NSRect(x: 96, y: yPosition - 40, width: 70, height: 20)
-        focusedRadio.state = .on
-        containerView.addSubview(focusedRadio)
-
-        let wanderingRadio = NSButton(radioButtonWithTitle: CheckinState.wandering.label, target: nil, action: nil)
-        wanderingRadio.frame = NSRect(x: 166, y: yPosition - 40, width: 80, height: 20)
-        containerView.addSubview(wanderingRadio)
-
-        let restingRadio = NSButton(radioButtonWithTitle: CheckinState.resting.label, target: nil, action: nil)
-        restingRadio.frame = NSRect(x: 246, y: yPosition - 40, width: 74, height: 20)
-        containerView.addSubview(restingRadio)
+        let stateSelector = NSSegmentedControl(
+            labels: [
+                CheckinState.focused.label,
+                CheckinState.wandering.label,
+                CheckinState.resting.label
+            ],
+            trackingMode: .selectOne,
+            target: nil,
+            action: nil
+        )
+        stateSelector.frame = NSRect(x: 96, y: yPosition - 42, width: 224, height: 24)
+        stateSelector.selectedSegment = 0
+        containerView.addSubview(stateSelector)
 
         let inputField = CheckinInputTextField(frame: NSRect(x: 0, y: yPosition - 74, width: 320, height: 24))
         inputField.placeholderString = "今の思考を一言で書いてください"
@@ -232,11 +233,12 @@ extension FocusSupportApp {
                 return nil
             }
             let selectedState: CheckinState
-            if wanderingRadio.state == .on {
+            switch stateSelector.selectedSegment {
+            case 1:
                 selectedState = .wandering
-            } else if restingRadio.state == .on {
+            case 2:
                 selectedState = .resting
-            } else {
+            default:
                 selectedState = .focused
             }
             return CheckinInputResult(responseText: text, state: selectedState)
