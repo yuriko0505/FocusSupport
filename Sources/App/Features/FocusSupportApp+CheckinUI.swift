@@ -249,19 +249,19 @@ extension FocusSupportApp {
     func currentPromptImage() -> NSImage? {
         guard let index = currentImageIndex,
               index >= 0,
-              index < imageFiles.count else {
+              index < imageStorageFiles.count else {
             return nil
         }
-        return loadImage(named: imageFiles[index])
+        return loadImage(named: imageStorageFiles[index])
     }
 
     func currentNotificationAttachment() -> UNNotificationAttachment? {
         guard let index = currentImageIndex,
               index >= 0,
-              index < imageFiles.count else {
+              index < imageStorageFiles.count else {
             return nil
         }
-        guard let url = safeImageFileURL(fileName: imageFiles[index]) else {
+        guard let url = safeImageFileURL(fileName: imageStorageFiles[index]) else {
             return nil
         }
         return try? UNNotificationAttachment(identifier: "promptImage", url: url, options: nil)
@@ -285,7 +285,7 @@ extension FocusSupportApp {
     }
 
     func randomizePromptImageIfNeeded() {
-        guard !imageFiles.isEmpty else { return }
-        currentImageIndex = Int.random(in: 0..<imageFiles.count)
+        guard !imageStorageFiles.isEmpty else { return }
+        currentImageIndex = Int.random(in: 0..<imageStorageFiles.count)
     }
 }

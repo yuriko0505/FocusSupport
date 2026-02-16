@@ -7,12 +7,37 @@ extension FocusSupportApp {
         let type: String?
     }
 
+    private struct PersistedImageEntry: Codable {
+        let displayName: String
+        let storageName: String
+    }
+
     func isValidImageFileName(_ fileName: String) -> Bool {
         let trimmed = fileName.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty { return false }
         if trimmed == "." || trimmed == ".." { return false }
         if trimmed.contains("/") || trimmed.contains(":") { return false }
         return true
+    }
+
+    func imageEntriesDefaultsKey() -> String {
+        "imageEntriesV2"
+    }
+
+    func sanitizeImageDisplayName(_ name: String) -> String {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? "image" : trimmed
+    }
+
+    func fileExistsAsRegularFile(_ url: URL) -> Bool {
+        let values = try? url.resourceValues(forKeys: [.isRegularFileKey])
+        return values?.isRegularFile == true
+    }
+
+    func makeManagedImageFileName(originalURL: URL) -> String {
+        let rawExt = originalURL.pathExtension.lowercased()
+        let ext = isValidImageFileName(rawExt) ? rawExt : "png"
+        return "img_\(UUID().uuidString).\(ext)"
     }
 
     func safeImageFileURL(fileName: String) -> URL? {
@@ -64,28 +89,53 @@ extension FocusSupportApp {
 
     func loadImageSettings() {
         let defaults = UserDefaults.standard
-        let configuredFiles = (defaults.stringArray(forKey: "imageFiles") ?? []).filter(isValidImageFileName)
-        let existingFiles = existingImageFileNames()
+        try? FileManager.default.createDirectory(at: imagesDirectory(), withIntermediateDirectories: true)
 
-        if configuredFiles.isEmpty {
-            // Recover from missing UserDefaults by rebuilding the list from local files.
-            imageFiles = existingFiles
-            if existingFiles.isEmpty == false {
+        if let data = defaults.data(forKey: imageEntriesDefaultsKey()),
+           let decoded = try? JSONDecoder().decode([PersistedImageEntry].self, from: data) {
+            var displayNames: [String] = []
+            var storageNames: [String] = []
+            var seenStorageNames = Set<String>()
+            for entry in decoded {
+                guard isValidImageFileName(entry.storageName),
+                      seenStorageNames.contains(entry.storageName) == false,
+                      let fileURL = safeImageFileURL(fileName: entry.storageName),
+                      fileExistsAsRegularFile(fileURL) else {
+                    continue
+                }
+                seenStorageNames.insert(entry.storageName)
+                displayNames.append(sanitizeImageDisplayName(entry.displayName))
+                storageNames.append(entry.storageName)
+            }
+            imageFiles = displayNames
+            imageStorageFiles = storageNames
+            if displayNames.count != decoded.count {
                 saveImageSettings()
             }
             return
         }
 
-        let existingSet = Set(existingFiles)
-        var reconciled = configuredFiles.filter { existingSet.contains($0) }
+        // Migration from legacy "imageFiles" and on-disk files.
+        let legacyFiles = (defaults.stringArray(forKey: "imageFiles") ?? []).filter(isValidImageFileName)
+        let existingSet = Set(existingImageFileNames())
 
-        // Include files that exist on disk but are not in defaults yet.
-        for fileName in existingFiles where reconciled.contains(fileName) == false {
-            reconciled.append(fileName)
+        var displayNames: [String] = []
+        var storageNames: [String] = []
+        var seenStorageNames = Set<String>()
+        for fileName in legacyFiles where existingSet.contains(fileName) {
+            guard seenStorageNames.contains(fileName) == false else { continue }
+            displayNames.append(fileName)
+            storageNames.append(fileName)
+            seenStorageNames.insert(fileName)
+        }
+        for fileName in existingImageFileNames() where storageNames.contains(fileName) == false {
+            displayNames.append(fileName)
+            storageNames.append(fileName)
         }
 
-        imageFiles = reconciled
-        if imageFiles != configuredFiles {
+        imageFiles = displayNames
+        imageStorageFiles = storageNames
+        if displayNames.isEmpty == false {
             saveImageSettings()
         }
     }
@@ -113,7 +163,22 @@ extension FocusSupportApp {
 
     func saveImageSettings() {
         let defaults = UserDefaults.standard
-        defaults.set(imageFiles, forKey: "imageFiles")
+        let pairCount = min(imageFiles.count, imageStorageFiles.count)
+        if imageFiles.count != pairCount {
+            imageFiles = Array(imageFiles.prefix(pairCount))
+        }
+        if imageStorageFiles.count != pairCount {
+            imageStorageFiles = Array(imageStorageFiles.prefix(pairCount))
+        }
+
+        let entries = zip(imageFiles, imageStorageFiles).map { pair in
+            PersistedImageEntry(displayName: sanitizeImageDisplayName(pair.0), storageName: pair.1)
+        }
+        let encoded = try? JSONEncoder().encode(entries)
+        defaults.set(encoded, forKey: imageEntriesDefaultsKey())
+
+        // Keep legacy key for easier rollback/debug visibility.
+        defaults.set(imageStorageFiles, forKey: "imageFiles")
     }
 
     func saveQuestionSettings() {
@@ -148,18 +213,19 @@ extension FocusSupportApp {
         do {
             let dir = imagesDirectory()
             try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-            let fileName = url.lastPathComponent
-            guard isValidImageFileName(fileName) else {
-                showAlert(title: "画像の追加に失敗", message: "画像ファイル名が不正です。別の画像で試してください。")
+            let storageName = makeManagedImageFileName(originalURL: url)
+            guard let target = safeImageFileURL(fileName: storageName) else {
+                showAlert(title: "画像の追加に失敗", message: "画像保存先の作成に失敗しました。")
                 return
             }
-            let target = dir.appendingPathComponent(fileName)
-            if FileManager.default.fileExists(atPath: target.path) == false {
-                try FileManager.default.copyItem(at: url, to: target)
+            if FileManager.default.fileExists(atPath: target.path) {
+                try FileManager.default.removeItem(at: target)
             }
-            if imageFiles.contains(fileName) == false {
-                imageFiles.append(fileName)
-            }
+            try FileManager.default.copyItem(at: url, to: target)
+
+            let displayName = sanitizeImageDisplayName(url.lastPathComponent)
+            imageFiles.append(displayName)
+            imageStorageFiles.append(storageName)
             saveImageSettings()
         } catch {
             showAlert(title: "画像の追加に失敗", message: "画像の追加に失敗しました。別の画像で試してください。")
@@ -167,15 +233,16 @@ extension FocusSupportApp {
     }
 
     func removeImage(at index: Int) {
-        guard index >= 0 && index < imageFiles.count else { return }
-        let fileName = imageFiles[index]
-        if let fileURL = safeImageFileURL(fileName: fileName) {
+        guard index >= 0 && index < imageStorageFiles.count else { return }
+        let storageName = imageStorageFiles[index]
+        if let fileURL = safeImageFileURL(fileName: storageName) {
             let values = try? fileURL.resourceValues(forKeys: [.isRegularFileKey])
             if values?.isRegularFile == true {
                 try? FileManager.default.removeItem(at: fileURL)
             }
         }
         imageFiles.remove(at: index)
+        imageStorageFiles.remove(at: index)
         saveImageSettings()
     }
 

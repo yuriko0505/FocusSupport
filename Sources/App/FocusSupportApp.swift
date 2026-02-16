@@ -25,6 +25,7 @@ final class FocusSupportApp: NSObject, NSApplicationDelegate, UNUserNotification
         "今の作業、本当に優先度高い？"
     ]
     var imageFiles: [String] = []
+    var imageStorageFiles: [String] = []
     var appIconFileName: String?
     var currentImageIndex: Int?
 
