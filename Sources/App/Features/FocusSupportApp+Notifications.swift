@@ -6,10 +6,10 @@ extension FocusSupportApp {
         guard notificationsEnabled else {
             return
         }
+        let sentAt = timeFormatter.string(from: Date())
         let content = UNMutableNotificationContent()
-        content.title = "Focus Support"
-        content.subtitle = "今何考えてる？"
-        content.body = "クリックして思考を共有してください 🤔"
+        content.title = "今何考えてる？"
+        content.body = "思考を共有してください💬 - \(sentAt)"
         content.sound = .default
         if let attachment = currentNotificationAttachment() {
             content.attachments = [attachment]
