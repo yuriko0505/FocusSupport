@@ -52,6 +52,8 @@ final class SettingsWindowController: NSWindowController, NSTableViewDataSource,
     let aiEnabledCheckbox = NSButton(checkboxWithTitle: "フィードバックにAIを使う", target: nil, action: nil)
     let aiBaseURLField = ShortcutTextField(string: "")
     let aiTokenField = ShortcutSecureTextField(string: "")
+    let aiTokenRevealField = ShortcutTextField(string: "")
+    let aiTokenRevealButton = NSButton()
     let aiModelField = ShortcutTextField(string: "")
     var isRefreshingAISettings = false
     var aiSettings = AISettings(isEnabled: false, baseURL: "", token: "", model: "")

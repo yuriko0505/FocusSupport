@@ -223,6 +223,41 @@ extension SettingsWindowController {
         aiTokenField.placeholderString = "Bearer token"
         aiTokenField.delegate = self
         aiTokenField.translatesAutoresizingMaskIntoConstraints = false
+        aiTokenRevealField.isEditable = false
+        aiTokenRevealField.isSelectable = true
+        aiTokenRevealField.isBordered = true
+        aiTokenRevealField.isHidden = true
+        aiTokenRevealField.translatesAutoresizingMaskIntoConstraints = false
+
+        aiTokenRevealButton.bezelStyle = .texturedRounded
+        aiTokenRevealButton.image = NSImage(systemSymbolName: "eye", accessibilityDescription: "トークンを表示")
+        aiTokenRevealButton.title = ""
+        aiTokenRevealButton.target = self
+        aiTokenRevealButton.action = #selector(handleTokenRevealPress(_:))
+        aiTokenRevealButton.sendAction(on: [.leftMouseDown, .leftMouseUp])
+        aiTokenRevealButton.translatesAutoresizingMaskIntoConstraints = false
+
+        let tokenFieldOverlay = NSView()
+        tokenFieldOverlay.translatesAutoresizingMaskIntoConstraints = false
+        tokenFieldOverlay.addSubview(aiTokenField)
+        tokenFieldOverlay.addSubview(aiTokenRevealField)
+        NSLayoutConstraint.activate([
+            aiTokenField.leadingAnchor.constraint(equalTo: tokenFieldOverlay.leadingAnchor),
+            aiTokenField.trailingAnchor.constraint(equalTo: tokenFieldOverlay.trailingAnchor),
+            aiTokenField.topAnchor.constraint(equalTo: tokenFieldOverlay.topAnchor),
+            aiTokenField.bottomAnchor.constraint(equalTo: tokenFieldOverlay.bottomAnchor),
+            aiTokenRevealField.leadingAnchor.constraint(equalTo: tokenFieldOverlay.leadingAnchor),
+            aiTokenRevealField.trailingAnchor.constraint(equalTo: tokenFieldOverlay.trailingAnchor),
+            aiTokenRevealField.topAnchor.constraint(equalTo: tokenFieldOverlay.topAnchor),
+            aiTokenRevealField.bottomAnchor.constraint(equalTo: tokenFieldOverlay.bottomAnchor)
+        ])
+
+        let tokenInputRow = NSStackView(views: [tokenFieldOverlay, aiTokenRevealButton])
+        tokenInputRow.orientation = .horizontal
+        tokenInputRow.spacing = 6
+        tokenInputRow.alignment = .centerY
+        tokenInputRow.distribution = .fill
+        tokenInputRow.translatesAutoresizingMaskIntoConstraints = false
 
         let modelLabel = NSTextField(labelWithString: "Model")
         modelLabel.alignment = .right
@@ -233,7 +268,7 @@ extension SettingsWindowController {
 
         let form = NSGridView(views: [
             [baseURLLabel, aiBaseURLField],
-            [tokenLabel, aiTokenField],
+            [tokenLabel, tokenInputRow],
             [modelLabel, aiModelField]
         ])
         form.translatesAutoresizingMaskIntoConstraints = false
@@ -247,7 +282,8 @@ extension SettingsWindowController {
         container.addArrangedSubview(form)
 
         NSLayoutConstraint.activate([
-            form.widthAnchor.constraint(equalToConstant: 420)
+            form.widthAnchor.constraint(equalToConstant: 420),
+            aiTokenRevealButton.widthAnchor.constraint(equalToConstant: 30)
         ])
 
         refreshAISettings()

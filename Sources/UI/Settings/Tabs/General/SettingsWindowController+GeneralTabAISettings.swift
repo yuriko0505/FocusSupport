@@ -7,7 +7,9 @@ extension SettingsWindowController {
         aiEnabledCheckbox.state = aiSettings.isEnabled ? .on : .off
         aiBaseURLField.stringValue = aiSettings.baseURL
         aiTokenField.stringValue = aiSettings.token
+        aiTokenRevealField.stringValue = aiSettings.token
         aiModelField.stringValue = aiSettings.model
+        hideTokenReveal()
         updateAIFieldsEnabledState()
         isRefreshingAISettings = false
     }
@@ -16,6 +18,7 @@ extension SettingsWindowController {
         let isEnabled = aiEnabledCheckbox.state == .on
         aiBaseURLField.isEnabled = isEnabled
         aiTokenField.isEnabled = isEnabled
+        aiTokenRevealButton.isEnabled = isEnabled
         aiModelField.isEnabled = isEnabled
     }
 
@@ -35,5 +38,28 @@ extension SettingsWindowController {
         aiSettings = next
         updateAIFieldsEnabledState()
         setAISettings(next)
+    }
+
+    @objc func handleTokenRevealPress(_ sender: NSButton) {
+        guard aiEnabledCheckbox.state == .on else { return }
+        switch NSApp.currentEvent?.type {
+        case .leftMouseDown:
+            showTokenReveal()
+        case .leftMouseUp:
+            hideTokenReveal()
+        default:
+            break
+        }
+    }
+
+    func showTokenReveal() {
+        aiTokenRevealField.stringValue = aiTokenField.stringValue
+        aiTokenField.isHidden = true
+        aiTokenRevealField.isHidden = false
+    }
+
+    func hideTokenReveal() {
+        aiTokenRevealField.isHidden = true
+        aiTokenField.isHidden = false
     }
 }
