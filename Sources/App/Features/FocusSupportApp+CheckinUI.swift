@@ -2,18 +2,6 @@ import AppKit
 import UserNotifications
 import Foundation
 
-private final class CheckinInputTextField: NSTextField {
-    override func performKeyEquivalent(with event: NSEvent) -> Bool {
-        let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-        let key = event.charactersIgnoringModifiers?.lowercased()
-        if modifiers == .command, key == "v" {
-            NSApp.sendAction(#selector(NSText.paste(_:)), to: nil, from: self)
-            return true
-        }
-        return super.performKeyEquivalent(with: event)
-    }
-}
-
 extension FocusSupportApp {
     private struct CheckinInputResult {
         let responseText: String
@@ -275,7 +263,7 @@ extension FocusSupportApp {
         stateSelector.selectedSegment = 0
         containerView.addSubview(stateSelector)
 
-        let inputField = CheckinInputTextField(frame: NSRect(x: 0, y: yPosition - 74, width: 320, height: 24))
+        let inputField = ShortcutTextField(frame: NSRect(x: 0, y: yPosition - 74, width: 320, height: 24))
         inputField.placeholderString = "今の思考を一言で書いてください"
         containerView.addSubview(inputField)
 

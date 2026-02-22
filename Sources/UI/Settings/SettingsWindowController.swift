@@ -50,9 +50,9 @@ final class SettingsWindowController: NSWindowController, NSTableViewDataSource,
     let startHourPopup = NSPopUpButton()
     let endHourPopup = NSPopUpButton()
     let aiEnabledCheckbox = NSButton(checkboxWithTitle: "フィードバックにAIを使う", target: nil, action: nil)
-    let aiBaseURLField = NSTextField(string: "")
-    let aiTokenField = NSSecureTextField(string: "")
-    let aiModelField = NSTextField(string: "")
+    let aiBaseURLField = ShortcutTextField(string: "")
+    let aiTokenField = ShortcutSecureTextField(string: "")
+    let aiModelField = ShortcutTextField(string: "")
     var isRefreshingAISettings = false
     var aiSettings = AISettings(isEnabled: false, baseURL: "", token: "", model: "")
     let statsSummaryLabel = NSTextField(labelWithString: "")
