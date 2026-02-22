@@ -182,14 +182,18 @@ extension FocusSupportApp {
                             isEnabled: false,
                             baseURL: "",
                             token: "",
-                            model: ""
+                            model: "",
+                            usePreviousResponseID: true,
+                            timeoutSeconds: 30
                         )
                     }
                     return SettingsWindowController.AISettings(
                         isEnabled: self.aiFeedbackEnabled,
                         baseURL: self.aiAPIBaseURLString,
                         token: self.aiBearerToken,
-                        model: self.aiModel
+                        model: self.aiModel,
+                        usePreviousResponseID: self.aiUsePreviousResponseID,
+                        timeoutSeconds: self.aiTimeoutSeconds
                     )
                 },
                 setAISettings: { [weak self] settings in
@@ -197,6 +201,8 @@ extension FocusSupportApp {
                     self?.aiAPIBaseURLString = settings.baseURL
                     self?.aiBearerToken = settings.token
                     self?.aiModel = settings.model
+                    self?.aiUsePreviousResponseID = settings.usePreviousResponseID
+                    self?.aiTimeoutSeconds = max(0.1, settings.timeoutSeconds)
                     if settings.isEnabled == false {
                         self?.aiPreviousResponseID = nil
                     }
@@ -376,18 +382,20 @@ extension FocusSupportApp {
         let body = AIChatRequest(
             model: trimmedModel,
             input: prompt,
-            previous_response_id: aiPreviousResponseID
+            previous_response_id: aiUsePreviousResponseID ? aiPreviousResponseID : nil
         )
         request.httpBody = try JSONEncoder().encode(body)
-        request.timeoutInterval = 30
+        request.timeoutInterval = max(0.1, aiTimeoutSeconds)
 
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
             throw URLError(.badServerResponse)
         }
         let decoded = try JSONDecoder().decode(AIChatResponse.self, from: data)
-        aiPreviousResponseID = decoded.response_id ?? aiPreviousResponseID
-        saveAISettings()
+        if aiUsePreviousResponseID {
+            aiPreviousResponseID = decoded.response_id ?? aiPreviousResponseID
+            saveAISettings()
+        }
 
         if let message = decoded.output.first(where: { $0.type == "message" })?.content?
             .trimmingCharacters(in: .whitespacesAndNewlines),

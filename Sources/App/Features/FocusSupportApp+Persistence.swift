@@ -184,6 +184,18 @@ extension FocusSupportApp {
             aiModel = savedModel
         }
 
+        if defaults.object(forKey: "aiUsePreviousResponseID") != nil {
+            aiUsePreviousResponseID = defaults.bool(forKey: "aiUsePreviousResponseID")
+        } else {
+            aiUsePreviousResponseID = true
+        }
+
+        if defaults.object(forKey: "aiTimeoutSeconds") != nil {
+            aiTimeoutSeconds = max(0.1, defaults.double(forKey: "aiTimeoutSeconds"))
+        } else {
+            aiTimeoutSeconds = 30
+        }
+
         aiPreviousResponseID = defaults.string(forKey: "aiPreviousResponseID")
     }
 
@@ -229,6 +241,8 @@ extension FocusSupportApp {
         defaults.set(aiAPIBaseURLString, forKey: "aiAPIBaseURLString")
         defaults.set(aiBearerToken, forKey: "aiBearerToken")
         defaults.set(aiModel, forKey: "aiModel")
+        defaults.set(aiUsePreviousResponseID, forKey: "aiUsePreviousResponseID")
+        defaults.set(max(0.1, aiTimeoutSeconds), forKey: "aiTimeoutSeconds")
         defaults.set(aiPreviousResponseID, forKey: "aiPreviousResponseID")
     }
 

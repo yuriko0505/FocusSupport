@@ -24,7 +24,7 @@ extension SettingsWindowController {
         if textField == inputField {
             return
         }
-        if textField == aiBaseURLField || textField == aiTokenField || textField == aiModelField {
+        if textField == aiBaseURLField || textField == aiTokenField || textField == aiModelField || textField == aiTimeoutField {
             persistAISettingsFromControls()
             return
         }

@@ -266,10 +266,22 @@ extension SettingsWindowController {
         aiModelField.delegate = self
         aiModelField.translatesAutoresizingMaskIntoConstraints = false
 
+        aiUsePreviousResponseIDCheckbox.target = self
+        aiUsePreviousResponseIDCheckbox.action = #selector(toggleAISettingsEnabled)
+        aiUsePreviousResponseIDCheckbox.translatesAutoresizingMaskIntoConstraints = false
+
+        let timeoutLabel = NSTextField(labelWithString: "Timeout(sec)")
+        timeoutLabel.alignment = .right
+        timeoutLabel.translatesAutoresizingMaskIntoConstraints = false
+        aiTimeoutField.placeholderString = "30"
+        aiTimeoutField.delegate = self
+        aiTimeoutField.translatesAutoresizingMaskIntoConstraints = false
+
         let form = NSGridView(views: [
             [baseURLLabel, aiBaseURLField],
             [tokenLabel, tokenInputRow],
-            [modelLabel, aiModelField]
+            [modelLabel, aiModelField],
+            [timeoutLabel, aiTimeoutField]
         ])
         form.translatesAutoresizingMaskIntoConstraints = false
         form.xPlacement = .fill
@@ -279,11 +291,19 @@ extension SettingsWindowController {
         form.column(at: 0).width = 80
         form.column(at: 1).xPlacement = .fill
 
-        container.addArrangedSubview(form)
+        let detailContainer = NSStackView()
+        detailContainer.orientation = .vertical
+        detailContainer.spacing = 8
+        detailContainer.alignment = .leading
+        detailContainer.translatesAutoresizingMaskIntoConstraints = false
+        detailContainer.addArrangedSubview(form)
+        detailContainer.addArrangedSubview(aiUsePreviousResponseIDCheckbox)
+        container.addArrangedSubview(detailContainer)
 
         NSLayoutConstraint.activate([
             form.widthAnchor.constraint(equalToConstant: 420),
-            aiTokenRevealButton.widthAnchor.constraint(equalToConstant: 30)
+            aiTokenRevealButton.widthAnchor.constraint(equalToConstant: 30),
+            detailContainer.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20)
         ])
 
         refreshAISettings()

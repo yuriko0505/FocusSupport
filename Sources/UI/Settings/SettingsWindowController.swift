@@ -6,6 +6,8 @@ final class SettingsWindowController: NSWindowController, NSTableViewDataSource,
         let baseURL: String
         let token: String
         let model: String
+        let usePreviousResponseID: Bool
+        let timeoutSeconds: Double
     }
 
     struct DailyLogCount {
@@ -55,8 +57,17 @@ final class SettingsWindowController: NSWindowController, NSTableViewDataSource,
     let aiTokenRevealField = ShortcutTextField(string: "")
     let aiTokenRevealButton = NSButton()
     let aiModelField = ShortcutTextField(string: "")
+    let aiUsePreviousResponseIDCheckbox = NSButton(checkboxWithTitle: "previous_response_idを指定する", target: nil, action: nil)
+    let aiTimeoutField = ShortcutTextField(string: "")
     var isRefreshingAISettings = false
-    var aiSettings = AISettings(isEnabled: false, baseURL: "", token: "", model: "")
+    var aiSettings = AISettings(
+        isEnabled: false,
+        baseURL: "",
+        token: "",
+        model: "",
+        usePreviousResponseID: true,
+        timeoutSeconds: 30
+    )
     let statsSummaryLabel = NSTextField(labelWithString: "")
     let weeklyOverviewLabel = NSTextField(labelWithString: "")
     let weeklyLineChartView = WeeklyLineChartView()

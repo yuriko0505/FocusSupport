@@ -14,6 +14,8 @@ final class FocusSupportApp: NSObject, NSApplicationDelegate, UNUserNotification
     var aiAPIBaseURLString: String = ""
     var aiBearerToken: String = ""
     var aiModel: String = ""
+    var aiUsePreviousResponseID: Bool = true
+    var aiTimeoutSeconds: Double = 30
     var aiPreviousResponseID: String?
 
     var checkinCount = 0
