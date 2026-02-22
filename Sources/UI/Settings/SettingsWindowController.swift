@@ -58,6 +58,7 @@ final class SettingsWindowController: NSWindowController, NSTableViewDataSource,
     let statsSummaryLabel = NSTextField(labelWithString: "")
     let weeklyOverviewLabel = NSTextField(labelWithString: "")
     let weeklyLineChartView = WeeklyLineChartView()
+    var clickMonitor: Any?
 
     init(getStats: @escaping () -> (String, String, String, String),
          getRecentDailyLogBreakdowns: @escaping (Int) -> [DailyLogBreakdown],
@@ -110,6 +111,12 @@ final class SettingsWindowController: NSWindowController, NSTableViewDataSource,
         return nil
     }
 
+    deinit {
+        if let clickMonitor {
+            NSEvent.removeMonitor(clickMonitor)
+        }
+    }
+
     func buildUI() {
         guard let contentView = window?.contentView else { return }
 
@@ -133,6 +140,8 @@ final class SettingsWindowController: NSWindowController, NSTableViewDataSource,
         settingsItem.label = "各種設定"
         settingsItem.view = buildSettingsView()
         tabView.addTabViewItem(settingsItem)
+
+        installClickToUnfocusIfNeeded()
     }
 
     func refreshData() {
@@ -145,5 +154,29 @@ final class SettingsWindowController: NSWindowController, NSTableViewDataSource,
         refreshAppIconName()
         refreshNotificationHours()
         refreshAISettings()
+    }
+
+    func installClickToUnfocusIfNeeded() {
+        guard clickMonitor == nil else { return }
+        clickMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { [weak self] event in
+            guard let self,
+                  let window = self.window,
+                  event.window === window,
+                  self.shouldUnfocusTextInput(window: window, event: event) else {
+                return event
+            }
+            window.makeFirstResponder(nil)
+            return event
+        }
+    }
+
+    func shouldUnfocusTextInput(window: NSWindow, event: NSEvent) -> Bool {
+        guard let contentView = window.contentView else { return false }
+        let pointInContent = contentView.convert(event.locationInWindow, from: nil)
+        guard let hitView = contentView.hitTest(pointInContent) else { return false }
+        if hitView is NSTextField || hitView is NSTextView {
+            return false
+        }
+        return true
     }
 }

@@ -354,6 +354,12 @@ extension FocusSupportApp {
         } else {
             endpoint = baseURL.appendingPathComponent("api/v1/chat")
         }
+        if endpoint.scheme?.lowercased() == "http" {
+            guard let host = endpoint.host,
+                  isAllowedInsecureAIHost(host) else {
+                throw URLError(.secureConnectionFailed)
+            }
+        }
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -389,5 +395,29 @@ extension FocusSupportApp {
             return message
         }
         throw URLError(.cannotParseResponse)
+    }
+
+    private func isAllowedInsecureAIHost(_ host: String) -> Bool {
+        let lower = host.lowercased()
+        if lower == "localhost" || lower == "127.0.0.1" || lower == "::1" {
+            return true
+        }
+        guard let ip = ipv4Value(host: lower) else {
+            return false
+        }
+        let tailscaleRangeStart: UInt32 = 0x6440_0000 // 100.64.0.0
+        let tailscaleRangeEnd: UInt32 = 0x647F_FFFF   // 100.127.255.255
+        return ip >= tailscaleRangeStart && ip <= tailscaleRangeEnd
+    }
+
+    private func ipv4Value(host: String) -> UInt32? {
+        let parts = host.split(separator: ".", omittingEmptySubsequences: false)
+        guard parts.count == 4 else { return nil }
+        var value: UInt32 = 0
+        for part in parts {
+            guard let octet = UInt8(part) else { return nil }
+            value = (value << 8) | UInt32(octet)
+        }
+        return value
     }
 }

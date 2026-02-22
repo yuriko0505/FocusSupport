@@ -2,7 +2,7 @@
 set -euo pipefail
 
 APP_NAME="FocusSupport"
-APP_BUILD_VERSION="0.11"
+APP_BUILD_VERSION="0.12"
 APP_SHORT_VERSION="0"
 OUT_DIR=".build"
 APP_DIR="$OUT_DIR/$APP_NAME.app"
@@ -65,6 +65,11 @@ cat <<PLIST > "$APP_DIR/Contents/Info.plist"
   <true/>
   <key>NSHighResolutionCapable</key>
   <true/>
+  <key>NSAppTransportSecurity</key>
+  <dict>
+    <key>NSAllowsArbitraryLoads</key>
+    <true/>
+  </dict>
 </dict>
 </plist>
 PLIST
