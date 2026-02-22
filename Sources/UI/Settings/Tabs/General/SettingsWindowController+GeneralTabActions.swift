@@ -24,6 +24,10 @@ extension SettingsWindowController {
         if textField == inputField {
             return
         }
+        if textField == aiBaseURLField || textField == aiTokenField || textField == aiModelField {
+            persistAISettingsFromControls()
+            return
+        }
         let row = questionsTableView.row(for: textField)
         guard row >= 0 && row < questions.count else { return }
         questions[row] = textField.stringValue

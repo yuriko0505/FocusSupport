@@ -10,6 +10,11 @@ final class FocusSupportApp: NSObject, NSApplicationDelegate, UNUserNotification
     let notificationsEnabled: Bool
     var notificationStartHour: Int = 9
     var notificationEndHour: Int = 20
+    var aiFeedbackEnabled: Bool = false
+    var aiAPIBaseURLString: String = ""
+    var aiBearerToken: String = ""
+    var aiModel: String = ""
+    var aiPreviousResponseID: String?
 
     var checkinCount = 0
     var focusedCount = 0
@@ -87,6 +92,7 @@ final class FocusSupportApp: NSObject, NSApplicationDelegate, UNUserNotification
         loadAppIconSettings()
         applyStatusItemIcon()
         loadNotificationTimeSettings()
+        loadAISettings()
         registerSchedulingObserversIfNeeded()
         scheduleNextCheckin()
     }

@@ -136,9 +136,11 @@ extension SettingsWindowController {
         imageDescriptionRow.translatesAutoresizingMaskIntoConstraints = false
 
         let notificationRow = buildNotificationTimeRow()
+        let aiSettingsView = buildAISettingsView()
 
         let contentStack = NSStackView(views: [
             notificationRow,
+            aiSettingsView,
             descriptionRow,
             questionsScroll,
             inputRow,
@@ -149,7 +151,7 @@ extension SettingsWindowController {
         ])
         contentStack.orientation = .vertical
         contentStack.spacing = 10
-        contentStack.alignment = .trailing
+        contentStack.alignment = .leading
         contentStack.distribution = .fill
         contentStack.translatesAutoresizingMaskIntoConstraints = false
 
@@ -194,6 +196,62 @@ extension SettingsWindowController {
         ])
 
         return view
+    }
+
+    func buildAISettingsView() -> NSView {
+        let container = NSStackView()
+        container.orientation = .vertical
+        container.spacing = 8
+        container.alignment = .leading
+        container.translatesAutoresizingMaskIntoConstraints = false
+
+        aiEnabledCheckbox.target = self
+        aiEnabledCheckbox.action = #selector(toggleAISettingsEnabled)
+        aiEnabledCheckbox.translatesAutoresizingMaskIntoConstraints = false
+        container.addArrangedSubview(aiEnabledCheckbox)
+
+        let baseURLLabel = NSTextField(labelWithString: "Base URL")
+        baseURLLabel.alignment = .right
+        baseURLLabel.translatesAutoresizingMaskIntoConstraints = false
+        aiBaseURLField.placeholderString = "http://localhost:11434"
+        aiBaseURLField.delegate = self
+        aiBaseURLField.translatesAutoresizingMaskIntoConstraints = false
+
+        let tokenLabel = NSTextField(labelWithString: "Token")
+        tokenLabel.alignment = .right
+        tokenLabel.translatesAutoresizingMaskIntoConstraints = false
+        aiTokenField.placeholderString = "Bearer token"
+        aiTokenField.delegate = self
+        aiTokenField.translatesAutoresizingMaskIntoConstraints = false
+
+        let modelLabel = NSTextField(labelWithString: "Model")
+        modelLabel.alignment = .right
+        modelLabel.translatesAutoresizingMaskIntoConstraints = false
+        aiModelField.placeholderString = "nvidia-nemotron-nano-9b-v2-japanese"
+        aiModelField.delegate = self
+        aiModelField.translatesAutoresizingMaskIntoConstraints = false
+
+        let form = NSGridView(views: [
+            [baseURLLabel, aiBaseURLField],
+            [tokenLabel, aiTokenField],
+            [modelLabel, aiModelField]
+        ])
+        form.translatesAutoresizingMaskIntoConstraints = false
+        form.xPlacement = .fill
+        form.yPlacement = .center
+        form.rowSpacing = 6
+        form.columnSpacing = 8
+        form.column(at: 0).width = 80
+        form.column(at: 1).xPlacement = .fill
+
+        container.addArrangedSubview(form)
+
+        NSLayoutConstraint.activate([
+            form.widthAnchor.constraint(equalToConstant: 420)
+        ])
+
+        refreshAISettings()
+        return container
     }
 
     func buildNotificationTimeRow() -> NSView {

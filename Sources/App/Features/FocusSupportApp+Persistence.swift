@@ -161,6 +161,32 @@ extension FocusSupportApp {
         notificationEndHour = end == 0 && defaults.object(forKey: "notificationEndHour") == nil ? 20 : end
     }
 
+    func loadAISettings() {
+        let defaults = UserDefaults.standard
+        if defaults.object(forKey: "aiFeedbackEnabled") != nil {
+            aiFeedbackEnabled = defaults.bool(forKey: "aiFeedbackEnabled")
+        } else {
+            aiFeedbackEnabled = false
+        }
+
+        if let savedBaseURL = defaults.string(forKey: "aiAPIBaseURLString"),
+           savedBaseURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
+            aiAPIBaseURLString = savedBaseURL
+        }
+
+        if let savedToken = defaults.string(forKey: "aiBearerToken"),
+           savedToken.isEmpty == false {
+            aiBearerToken = savedToken
+        }
+
+        if let savedModel = defaults.string(forKey: "aiModel"),
+           savedModel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
+            aiModel = savedModel
+        }
+
+        aiPreviousResponseID = defaults.string(forKey: "aiPreviousResponseID")
+    }
+
     func saveImageSettings() {
         let defaults = UserDefaults.standard
         let pairCount = min(imageFiles.count, imageStorageFiles.count)
@@ -195,6 +221,15 @@ extension FocusSupportApp {
         let defaults = UserDefaults.standard
         defaults.set(notificationStartHour, forKey: "notificationStartHour")
         defaults.set(notificationEndHour, forKey: "notificationEndHour")
+    }
+
+    func saveAISettings() {
+        let defaults = UserDefaults.standard
+        defaults.set(aiFeedbackEnabled, forKey: "aiFeedbackEnabled")
+        defaults.set(aiAPIBaseURLString, forKey: "aiAPIBaseURLString")
+        defaults.set(aiBearerToken, forKey: "aiBearerToken")
+        defaults.set(aiModel, forKey: "aiModel")
+        defaults.set(aiPreviousResponseID, forKey: "aiPreviousResponseID")
     }
 
     func imagesDirectory() -> URL {

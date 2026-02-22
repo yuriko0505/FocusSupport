@@ -1,5 +1,6 @@
 import AppKit
 import UserNotifications
+import Foundation
 
 private final class CheckinInputTextField: NSTextField {
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
@@ -17,6 +18,22 @@ extension FocusSupportApp {
     private struct CheckinInputResult {
         let responseText: String
         let state: CheckinState
+    }
+
+    private struct AIChatRequest: Encodable {
+        let model: String
+        let input: String
+        let previous_response_id: String?
+    }
+
+    private struct AIChatResponse: Decodable {
+        struct OutputItem: Decodable {
+            let type: String
+            let content: String?
+        }
+
+        let output: [OutputItem]
+        let response_id: String?
     }
 
     func alertIconImage() -> NSImage? {
@@ -65,7 +82,26 @@ extension FocusSupportApp {
         todayLogs.append(entry)
         appendLogEntry(entry)
 
-        showAlert(title: "フィードバック", message: state.feedbackMessage)
+        Task { [weak self] in
+            guard let self else { return }
+            let fallback = state.feedbackMessage
+            guard self.aiFeedbackEnabled else {
+                await MainActor.run {
+                    self.showAlert(title: "フィードバック", message: fallback)
+                }
+                return
+            }
+            do {
+                let feedback = try await self.fetchAIFeedback(question: question, userInput: userInput, state: state)
+                await MainActor.run {
+                    self.showAlert(title: "フィードバック", message: feedback)
+                }
+            } catch {
+                await MainActor.run {
+                    self.showAlert(title: "フィードバック", message: fallback)
+                }
+            }
+        }
     }
 
     @objc func showLogsMenuTapped() {
@@ -151,6 +187,32 @@ extension FocusSupportApp {
                     self?.notificationEndHour = endHour
                     self?.saveNotificationTimeSettings()
                     self?.scheduleNextCheckin()
+                },
+                getAISettings: { [weak self] in
+                    guard let self else {
+                        return SettingsWindowController.AISettings(
+                            isEnabled: false,
+                            baseURL: "",
+                            token: "",
+                            model: ""
+                        )
+                    }
+                    return SettingsWindowController.AISettings(
+                        isEnabled: self.aiFeedbackEnabled,
+                        baseURL: self.aiAPIBaseURLString,
+                        token: self.aiBearerToken,
+                        model: self.aiModel
+                    )
+                },
+                setAISettings: { [weak self] settings in
+                    self?.aiFeedbackEnabled = settings.isEnabled
+                    self?.aiAPIBaseURLString = settings.baseURL
+                    self?.aiBearerToken = settings.token
+                    self?.aiModel = settings.model
+                    if settings.isEnabled == false {
+                        self?.aiPreviousResponseID = nil
+                    }
+                    self?.saveAISettings()
                 }
             )
         }
@@ -287,5 +349,57 @@ extension FocusSupportApp {
     func randomizePromptImageIfNeeded() {
         guard !imageStorageFiles.isEmpty else { return }
         currentImageIndex = Int.random(in: 0..<imageStorageFiles.count)
+    }
+
+    private func fetchAIFeedback(question: String, userInput: String, state: CheckinState) async throws -> String {
+        let trimmedBaseURL = aiAPIBaseURLString.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedModel = aiModel.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmedBaseURL.isEmpty == false, trimmedModel.isEmpty == false else {
+            throw URLError(.badURL)
+        }
+        guard let baseURL = URL(string: trimmedBaseURL) else {
+            throw URLError(.badURL)
+        }
+        let endpoint: URL
+        if baseURL.path.hasSuffix("/api/v1/chat") {
+            endpoint = baseURL
+        } else {
+            endpoint = baseURL.appendingPathComponent("api/v1/chat")
+        }
+        var request = URLRequest(url: endpoint)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if aiBearerToken.isEmpty == false {
+            request.setValue("Bearer \(aiBearerToken)", forHTTPHeaderField: "Authorization")
+        }
+
+        let prompt = """
+        ユーザー状態: \(state.label)
+        ユーザーコメント: \(userInput)
+
+        この内容に対して、日本語で短く具体的なフィードバックを返してください。
+        """
+        let body = AIChatRequest(
+            model: trimmedModel,
+            input: prompt,
+            previous_response_id: aiPreviousResponseID
+        )
+        request.httpBody = try JSONEncoder().encode(body)
+        request.timeoutInterval = 30
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+        let decoded = try JSONDecoder().decode(AIChatResponse.self, from: data)
+        aiPreviousResponseID = decoded.response_id ?? aiPreviousResponseID
+        saveAISettings()
+
+        if let message = decoded.output.first(where: { $0.type == "message" })?.content?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+           message.isEmpty == false {
+            return message
+        }
+        throw URLError(.cannotParseResponse)
     }
 }

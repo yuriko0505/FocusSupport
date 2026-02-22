@@ -1,6 +1,13 @@
 import AppKit
 
 final class SettingsWindowController: NSWindowController, NSTableViewDataSource, NSTableViewDelegate, NSTextFieldDelegate {
+    struct AISettings {
+        let isEnabled: Bool
+        let baseURL: String
+        let token: String
+        let model: String
+    }
+
     struct DailyLogCount {
         let date: Date
         let count: Int
@@ -28,6 +35,8 @@ final class SettingsWindowController: NSWindowController, NSTableViewDataSource,
     let resetAppIcon: () -> Void
     let getNotificationHours: () -> (Int, Int)
     let setNotificationHours: (Int, Int) -> Void
+    let getAISettings: () -> AISettings
+    let setAISettings: (AISettings) -> Void
 
     var questions: [String] = []
     var images: [String] = []
@@ -40,6 +49,12 @@ final class SettingsWindowController: NSWindowController, NSTableViewDataSource,
     let rowHeight: CGFloat = 26
     let startHourPopup = NSPopUpButton()
     let endHourPopup = NSPopUpButton()
+    let aiEnabledCheckbox = NSButton(checkboxWithTitle: "フィードバックにAIを使う", target: nil, action: nil)
+    let aiBaseURLField = NSTextField(string: "")
+    let aiTokenField = NSSecureTextField(string: "")
+    let aiModelField = NSTextField(string: "")
+    var isRefreshingAISettings = false
+    var aiSettings = AISettings(isEnabled: false, baseURL: "", token: "", model: "")
     let statsSummaryLabel = NSTextField(labelWithString: "")
     let weeklyOverviewLabel = NSTextField(labelWithString: "")
     let weeklyLineChartView = WeeklyLineChartView()
@@ -55,7 +70,9 @@ final class SettingsWindowController: NSWindowController, NSTableViewDataSource,
          setAppIcon: @escaping (URL) -> Void,
          resetAppIcon: @escaping () -> Void,
          getNotificationHours: @escaping () -> (Int, Int),
-        setNotificationHours: @escaping (Int, Int) -> Void) {
+         setNotificationHours: @escaping (Int, Int) -> Void,
+         getAISettings: @escaping () -> AISettings,
+         setAISettings: @escaping (AISettings) -> Void) {
         self.getStats = getStats
         self.getRecentDailyLogBreakdowns = getRecentDailyLogBreakdowns
         self.getQuestions = getQuestions
@@ -68,6 +85,8 @@ final class SettingsWindowController: NSWindowController, NSTableViewDataSource,
         self.resetAppIcon = resetAppIcon
         self.getNotificationHours = getNotificationHours
         self.setNotificationHours = setNotificationHours
+        self.getAISettings = getAISettings
+        self.setAISettings = setAISettings
 
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 640, height: 520),
@@ -83,6 +102,7 @@ final class SettingsWindowController: NSWindowController, NSTableViewDataSource,
         self.questions = getQuestions()
         self.images = getImages()
         self.appIconFileName = getAppIconFileName()
+        self.aiSettings = getAISettings()
         buildUI()
     }
 
@@ -124,5 +144,6 @@ final class SettingsWindowController: NSWindowController, NSTableViewDataSource,
         imagesTableView.reloadData()
         refreshAppIconName()
         refreshNotificationHours()
+        refreshAISettings()
     }
 }
