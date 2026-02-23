@@ -373,7 +373,19 @@ extension FocusSupportApp {
             request.setValue("Bearer \(aiBearerToken)", forHTTPHeaderField: "Authorization")
         }
 
+        let nowFormatter = ISO8601DateFormatter()
+        nowFormatter.timeZone = .current
+        nowFormatter.formatOptions = [.withInternetDateTime]
+        let now = Date()
+        let currentDateTime = nowFormatter.string(from: now)
+        let weekdayFormatter = DateFormatter()
+        weekdayFormatter.locale = Locale(identifier: "ja_JP")
+        weekdayFormatter.timeZone = .current
+        weekdayFormatter.dateFormat = "EEEE"
+        let weekday = weekdayFormatter.string(from: now)
+
         let prompt = """
+        現在日時: \(currentDateTime)(\(weekday))
         ユーザー状態: \(state.label)
         ユーザーコメント: \(userInput)
 
